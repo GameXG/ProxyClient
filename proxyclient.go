@@ -2,6 +2,7 @@ package proxyclient
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -55,8 +56,9 @@ type ProxyClient interface {
 
 // 创建代理客户端
 // http 代理 http://123.123.123.123:8088
-// socks4a 代理 socks4a://123.
-// socks5 代理 socks5://123.
+// socks4 代理 socks4://123.123.123.123:5050  不支持远端 dns 解析
+// socks4a 代理 socks4a://123.123.123.123:5050
+// socks5 代理 socks5://123.123.123.123:5050?upProxy=http://145.2.1.3:8080
 // 直连 direct://0.0.0.0:0000/?LocalAddr=123.123.123.123:0
 func NewProxyClient(addr string) (ProxyClient, error) {
 	u, err := url.Parse(addr)
@@ -69,13 +71,25 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 		query[strings.ToLower(k)] = v
 	}
 
-	switch strings.ToLower(u.Scheme) {
+	scheme := strings.ToLower(strings.TrimSpace(u.Scheme))
+
+	var upProxy ProxyClient = nil
+	if up, ok := query["upproxy"]; ok == true {
+		if upProxy, err = NewDriectProxyClient(up[0]); err != nil {
+			return nil, fmt.Errorf("upProxy 创建失败：%v", err)
+		}
+	}
+
+	switch scheme {
 	case "direct":
 		if localAddr, ok := query["LocalAddr"]; ok {
 			return NewDriectProxyClient(localAddr[0])
 		} else {
 			return NewDriectProxyClient(":0")
 		}
+	case "socks4", "socks4a", "socks5":
+		return NewSocksProxyClient(scheme, u.Host, upProxy)
+	default:
+		return nil, fmt.Errorf("未识别的代理类型：%v", scheme)
 	}
-	panic("未完成")
 }
