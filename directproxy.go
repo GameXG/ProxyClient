@@ -1,20 +1,22 @@
 package proxyclient
+
 import (
 	"net"
 
 	"errors"
-	"time"
+	"fmt"
 	"strings"
+	"time"
 )
 
 type DirectTCPConn struct {
 	net.TCPConn
-	proxyClient *ProxyClient
+	proxyClient ProxyClient
 }
 
 type DirectUDPConn struct {
 	net.UDPConn
-	proxyClient *ProxyClient
+	proxyClient ProxyClient
 }
 type directProxyClient struct {
 	TCPLocalAddr net.TCPAddr
@@ -24,8 +26,8 @@ type directProxyClient struct {
 // 创建代理客户端
 // 直连 direct://0.0.0.0:0000/?LocalAddr=123.123.123.123:0
 func NewDriectProxyClient(localAddr string) (ProxyClient, error) {
-	if localAddr == nil || localAddr==""{
-		localAddr = ":0"
+	if localAddr == "" {
+		localAddr = "0.0.0.0:0"
 	}
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", localAddr)
@@ -33,57 +35,65 @@ func NewDriectProxyClient(localAddr string) (ProxyClient, error) {
 		return nil, errors.New("LocalAddr 错误的格式")
 	}
 
-	udpAddr, err := net.ResolveTCPAddr("tcp", localAddr)
+	udpAddr, err := net.ResolveUDPAddr("udp", localAddr)
 	if err != nil {
 		return nil, errors.New("LocalAddr 错误的格式")
 	}
 
-	return &directProxyClient{tcpAddr, udpAddr}, nil
+	return &directProxyClient{*tcpAddr, *udpAddr}, nil
 }
 
-func (p *directProxyClient)Dial(network, address string) (Conn, error) {
+func (p *directProxyClient) Dial(network, address string) (Conn, error) {
 	if strings.HasPrefix(network, "tcp") {
-		return p.DialTCP(network, p.TCPLocalAddr, address)
+		addr, err := net.ResolveTCPAddr(network, address)
+		if err != nil {
+			return nil, fmt.Errorf("地址解析错误:%v", err)
+		}
+		return p.DialTCP(network, &p.TCPLocalAddr, addr)
 	} else if strings.HasPrefix(network, "udp") {
-		return p.DialUDP(network, p.UDPLocalAddr, address)
-	}else {
+		addr, err := net.ResolveUDPAddr(network, address)
+		if err != nil {
+			return nil, fmt.Errorf("地址解析错误:%v", err)
+		}
+		return p.DialUDP(network, &p.UDPLocalAddr, addr)
+	} else {
 		return nil, errors.New("未知的 network 类型。")
 	}
 }
 
-func (p *directProxyClient)DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
+func (p *directProxyClient) DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
 	return nil, errors.New("未完成")
 }
-func (p *directProxyClient)DialTCP(network string, laddr, raddr *net.TCPAddr) (*DirectTCPConn, error) {
-	if laddr==nil{
-		laddr = p.TCPLocalAddr
+func (p *directProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (TCPConn, error) {
+	if laddr == nil {
+		laddr = &p.TCPLocalAddr
 	}
-	conn,err := net.DialTCP(network,laddr,raddr)
-	if err!=nil{
-		return nil,err
+	conn, err := net.DialTCP(network, laddr, raddr)
+	if err != nil {
+		return nil, err
 	}
-	return &DirectTCPConn{conn,p}
+	return &DirectTCPConn{*conn, p}, nil
 }
 
-func (p *directProxyClient)DialUDP(network string, laddr, raddr *net.UDPAddr) (*DirectUDPConn, error) {
-	if laddr==nil{
-		laddr = p.UDPLocalAddr
+func (p *directProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (UDPConn, error) {
+	if laddr == nil {
+		laddr = &p.UDPLocalAddr
 	}
-	conn,err := net.DialUDP(network,laddr,raddr)
-	if err!=nil{
-		return nil,err
+	conn, err := net.DialUDP(network, laddr, raddr)
+	if err != nil {
+		return nil, err
 	}
-	return &DirectUDPConn{conn,p}
+	return &DirectUDPConn{*conn, p}, nil
 }
-func (p *directProxyClient)UpProxy() (*ProxyClient) {
+func (p *directProxyClient) UpProxy() ProxyClient {
 	return nil
 }
-func (p *directProxyClient)SetUpProxy() (error) {
+func (p *directProxyClient) SetUpProxy(upProxy ProxyClient) error {
 	return errors.New("直连不支持上层代理。")
 }
-func (c *DirectTCPConn)ProxyClientNet() *ProxyClient {
+func (c *DirectTCPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
 }
-func (c *DirectUDPConn)ProxyClientNet() *ProxyClient {
+func (c *DirectUDPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
 }
