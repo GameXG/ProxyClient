@@ -75,6 +75,14 @@ func (p *directProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (
 	return &DirectTCPConn{*conn, p}, nil
 }
 
+func (p *directProxyClient)DialTCPSAddr(network string, raddr string) (TCPConn, error) {
+	addr, err := net.ResolveTCPAddr(network, raddr)
+	if err != nil {
+		return nil, fmt.Errorf("代理服务器地址错误，无法解析：%v", err)
+	}
+	return p.DialTCP(network, nil, addr)
+}
+
 func (p *directProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (UDPConn, error) {
 	if laddr == nil {
 		laddr = &p.UDPLocalAddr

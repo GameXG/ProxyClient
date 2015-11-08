@@ -48,6 +48,7 @@ type ProxyClient interface {
 	Dial(network, address string) (Conn, error)
 	DialTimeout(network, address string, timeout time.Duration) (Conn, error)
 	DialTCP(net string, laddr, raddr *net.TCPAddr) (TCPConn, error)
+	DialTCPSAddr(network string, raddr string) (TCPConn, error)
 	//ListenTCP在本地TCP地址laddr上声明并返回一个*TCPListener，net参数必须是"tcp"、"tcp4"、"tcp6"，如果laddr的端口字段为0，函数将选择一个当前可用的端口，可以用Listener的Addr方法获得该端口。
 	//ListenTCP(net string, laddr *TCPAddr) (*TCPListener, error)
 	//DialTCP在网络协议net上连接本地地址laddr和远端地址raddr。net必须是"udp"、"udp4"、"udp6"；如果laddr不是nil，将使用它作为本地地址，否则自动选择一个本地地址。

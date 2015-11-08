@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	SocksCmdConect       = 0x01
-	SocksCmdBind         = 0x02
+	SocksCmdConect = 0x01
+	SocksCmdBind = 0x02
 	SocksCmdUdpAssociate = 0x03
 )
 
@@ -33,10 +33,10 @@ type SocksUDPConn struct {
 }
 
 type socksProxyClient struct {
-	proxyAddr net.TCPAddr
+	proxyAddr string
 	proxyType string // socks4 socks5
-	//TODO: 用户名、密码
-	upProxy ProxyClient
+					 //TODO: 用户名、密码
+	upProxy   ProxyClient
 }
 
 // 创建代理客户端
@@ -44,29 +44,25 @@ type socksProxyClient struct {
 // ProxyAddr 	127.0.0.1:5555
 // UpProxy
 func NewSocksProxyClient(proxyType string, proxyAddr string, upProxy ProxyClient) (ProxyClient, error) {
-	nProxyType := strings.ToLower(strings.Trim(proxyType, " \r\n\t"))
-	if nProxyType != "socks4" && nProxyType != "socks5" {
+	proxyType = strings.ToLower(strings.Trim(proxyType, " \r\n\t"))
+	if proxyType != "socks4" && proxyType != "socks5" {
 		return nil, errors.New("ProxyType 错误的格式")
 	}
 
-	nProxyAddr, err := net.ResolveTCPAddr("tcp", proxyAddr)
-	if err != nil {
-		return nil, errors.New("ProxyAddr 错误的格式")
-	}
-
 	if upProxy == nil {
-		upProxy, err = NewDriectProxyClient("")
+		nUpProxy, err := NewDriectProxyClient("")
 		if err != nil {
 			return nil, fmt.Errorf("创建直连代理错误：%v", err)
 		}
+		upProxy = nUpProxy
 	}
 
-	return &socksProxyClient{*nProxyAddr, nProxyType, upProxy}, nil
+	return &socksProxyClient{proxyAddr, proxyType, upProxy}, nil
 }
 
 func (p *socksProxyClient) Dial(network, address string) (Conn, error) {
 	if strings.HasPrefix(strings.ToLower(network), "tcp") {
-		return p.DialTCPRAddr(network, address)
+		return p.DialTCPSAddr(network, address)
 	} else if strings.HasPrefix(strings.ToLower(network), "udp") {
 		addr, err := net.ResolveUDPAddr(network, address)
 		if err != nil {
@@ -87,11 +83,11 @@ func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (T
 		return nil, errors.New("代理协议不支持指定本地地址。")
 	}
 
-	return p.DialTCPRAddr(network, raddr.String())
+	return p.DialTCPSAddr(network, raddr.String())
 }
 
-func (p *socksProxyClient) DialTCPRAddr(network string, raddr string) (TCPConn, error) {
-	c, err := p.upProxy.DialTCP(network, nil, &p.proxyAddr)
+func (p *socksProxyClient) DialTCPSAddr(network string, raddr string) (TCPConn, error) {
+	c, err := p.upProxy.DialTCPSAddr(network, p.proxyAddr)
 	if err != nil {
 		return nil, fmt.Errorf("无法连接代理服务器 %v ，错误：%v", p.proxyAddr, err)
 	}
@@ -159,7 +155,7 @@ func socksLogin(c TCPConn, p *socksProxyClient) error {
 
 // 发送 socks 命令请求
 func socksSendCmdRequest(w io.Writer, p *socksProxyClient, cmd byte, raddr string) error {
-	b := make([]byte, 0, 6+len(raddr))
+	b := make([]byte, 0, 6 + len(raddr))
 
 	var port uint16
 	host, portString, err := net.SplitHostPort(raddr)
@@ -267,7 +263,7 @@ func socksSendCmdRequest(w io.Writer, p *socksProxyClient, cmd byte, raddr strin
 // 服务器应答状态码成功时 err == nil
 // 所以一般只需要判断 err 即可，不需要判断 rep
 func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr string, dstPort uint16, bndAddr string, bndPort uint16, err error) {
-	b := make([]byte, 255+10)
+	b := make([]byte, 255 + 10)
 	if p.proxyType == "socks4" || p.proxyType == "socks4a" {
 		//ver
 		if _, cerr := io.ReadFull(r, b[:1]); cerr != nil || b[0] != 0x04 {
@@ -287,7 +283,7 @@ func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr st
 		}
 
 		dstPort = binary.BigEndian.Uint16(b[1:3])
-		dstIP := net.IP(b[3 : 3+4])
+		dstIP := net.IP(b[3 : 3 + 4])
 		dstAddr = dstIP.String()
 
 		return
