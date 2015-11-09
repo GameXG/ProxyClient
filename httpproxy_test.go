@@ -1,129 +1,101 @@
 package proxyclient
 
 import (
+	"testing"
 	"bytes"
-	"fmt"
 	"io"
 	"net"
-	"strings"
-	"testing"
+	"fmt"
 )
 
-func testHttpProixyServer(t *testing.T, proxyAddr string, rAddr string, ci chan int) {
-	b := make([]byte, 1024)
-	addr, err := net.ResolveTCPAddr("tcp", proxyAddr)
-	if err != nil {
-		t.Errorf("错误的地址(%v)：%v", proxyAddr, err)
-		return
-	}
+const (CONNECT = "CONNECT")
 
-	listen, err := net.ListenTCP("tcp", addr)
+// 伪装成为一个代理服务器。
+func testHttpProixyServer(t *testing.T, proxyAddr string, rAddr string, ci chan int) {
+
+	l, err := net.Listen("tcp", proxyAddr)
 	if err != nil {
-		t.Errorf("错误,%v", err)
-		return
+		fmt.Println("监听错误:%v", err)
+		t.Fatal("监听错误:%v", err)
 	}
 
 	ci <- 1
-
-	c, err := listen.Accept()
-
-	if v, ok := c.(TCPConn); ok != true {
-		t.Errorf("S tcp 连接错误类型")
-		return
-	} else {
-		v.SetLinger(5)
-		//	v.SetDeadline(time.Now().Add(3 * time.Second))
+	c, err := l.Accept()
+	if err != nil {
+		t.Fatal("接受连接错误:", err)
 	}
+
+	b := make([]byte, 1024)
 
 	if n, err := c.Read(b); err != nil {
-		fmt.Print(err)
-		t.Errorf("读错误：err=%v ,b=%v", err, b[:n])
-	} else {
+		t.Fatal("读错误：%v", err)
+	}else {
 		b = b[:n]
-		str := string(b)
-		if strings.HasPrefix(str, "CONNECT "+rAddr) != true {
-			t.Errorf("请求未包含:%v", rAddr)
-		}
+		print(b)
 	}
 
-	if _, err := c.Write([]byte("HTTP/1.0 200 conn ok\r\nProxy-agent:XXX\r\n\r\n")); err != nil {
-		t.Errorf("写错误：%v", err)
-		return
-	} else {
-		fmt.Println("S已发出 200 回应")
+	connect := CONNECT + " " + rAddr
+
+	if bytes.Equal(b[:len(connect)], []byte(connect)) != true {
+		t.Fatal("命令不匹配！")
 	}
+
+	if _, err := c.Write([]byte("HTTP/1.0 200 ok\r\nAAA:111\r\n\r\n")); err != nil {
+		t.Fatal("写数据错误")
+	}
+
 
 	if n, err := c.Read(b[:1024]); err != nil {
-		fmt.Println("S读数据错误", n, err)
-		t.Errorf("S读数据错误，err=%v, data=%v", err, b[:n])
-		return
-	} else {
-		fmt.Println("S读到数据：", b)
-		if bytes.Equal(b[:n], []byte("0123456789")) != true {
-			fmt.Println("S读数据不匹配：", b)
-		} else {
-			fmt.Print("S读数据匹配")
-		}
+		t.Fatal("读错误：%v", err)
+	}else {
+		b = b[:n]
+		print(b)
 	}
 
-	if _, err := c.Write([]byte("9876543210")); err != nil {
-		t.Errorf("S写错误：%v", err)
-		return
-	} else {
-		fmt.Println("S写数据：9876543210")
+
+	if _, err := c.Write([]byte("HTTP/1.0 200 ok\r\nHead1:11111\r\n\r\nHello Word!")); err != nil {
+		t.Fatal("写数据错误")
 	}
 
 	c.Close()
 
+
+
 }
 
 func TestHttpProxy(t *testing.T) {
-
 	ci := make(chan int)
-	go testHttpProixyServer(t, "127.0.0.1:13340", "www.google.com:80", ci)
+	go testHttpProixyServer(t, "127.0.0.1:1331", "www.google.com:80", ci)
 	<-ci
 
-	p, err := NewHttpProxyClient("http", "127.0.0.1:13340", "", false, nil)
+	p, err := NewProxyClient("http://127.0.0.1:1331")
 	if err != nil {
-		t.Errorf("HTTP 代理建立失败：%v", err)
-		return
+		t.Fatal("连接代理服务器错误：%v", err)
 	}
 
 	c, err := p.Dial("tcp", "www.google.com:80")
 	if err != nil {
-		t.Errorf("C HTTP代理连接远程服务器失败。")
-		return
-	} else {
-		fmt.Println("C连接已建立")
+		t.Fatal("通过代理服务器连接目标网站失败：%v", err)
 	}
 
-	if _, err := c.Write([]byte("0123456789")); err != nil {
-		t.Errorf("C写错误：%v", err)
-		return
-	} else {
-		fmt.Println("C 0123456789 已发出")
+	if _, err := c.Write([]byte("GET / HTTP/1.0\r\nHOST:www.google.com\r\n\r\n")); err != nil {
+		t.Fatal("请求发送错误：%v", err)
 	}
 
-	b := make([]byte, 50)
-	// 卡到了这里。
+	b := make([]byte, 1024)
 	if n, err := c.Read(b); err != nil {
-		t.Errorf("C 读错误：err:%v,b:%v", err, b[:n])
-		return
-	} else {
+		t.Fatal("响应读取错误：%v", err)
+	}else {
 		b = b[:n]
-		fmt.Println("C 已读到：", b)
-	}
-	if bytes.Equal(b, []byte("9876543210")) != true {
-		t.Errorf("C 读数据不匹配")
-		return
-	} else {
-		fmt.Println("C 读数据正确")
 	}
 
-	if _, err := c.Read(b); err != io.EOF {
-		t.Errorf("C 非预期额结尾：%v", err)
-		return
-	} else {
-		fmt.Println("C 到达预期结尾")
+	if bytes.Equal(b, []byte("HTTP/1.0 200 ok\r\nHead1:11111\r\n\r\nHello Word!")) != true {
+		t.Fatal("返回内容不匹配：%v", string(b))
 	}
+
+	if _, err:= c.Read(b[:1024]); err != io.EOF {
+		t.Fatal("非预期的结尾：%v", err)
+	}
+
 }
+
