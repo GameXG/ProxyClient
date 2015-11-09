@@ -1,6 +1,6 @@
 # ProxyClient
 golang 代理客户端，和 net 标准库一致的 API 。
-支持嵌套台历，支持 socks4、socks4a、socks5、http、https代理协议。
+支持嵌套代理，支持 socks4、socks4a、socks5、http、https代理协议。
 
 
 ``` go

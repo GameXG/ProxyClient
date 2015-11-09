@@ -12,7 +12,6 @@ import (
 // 连接
 type Conn interface {
 	net.Conn
-	ProxyClient() ProxyClient // 获得所属的代理
 }
 
 // 表示 TCP 连接
@@ -36,11 +35,20 @@ type TCPConn interface {
 	SetWriteBuffer(bytes int) error
 }
 
+type ProxyTCPConn interface {
+	TCPConn
+	ProxyClient() ProxyClient // 获得所属的代理
+}
+
 // 表示 UDP 连接
 type UDPConn interface {
 	Conn
 }
 
+type ProxyUDPConn interface {
+	UDPConn
+	ProxyClient() ProxyClient // 获得所属的代理
+}
 // 仿 net 库接口的代理客户端
 // 支持级联代理功能，可以通过 SetUpProxy 设置上级代理。
 type ProxyClient interface {
@@ -57,13 +65,13 @@ type ProxyClient interface {
 	DialTimeout(network, address string, timeout time.Duration) (Conn, error)
 	// DialTCP在网络协议net上连接本地地址laddr和远端地址raddr。net必须是"tcp"、"tcp4"、"tcp6"；如果laddr不是nil，将使用它作为本地地址，否则自动选择一个本地地址。
 	// 由于 net.TCPAddr 内部保存的是IP地址及端口，所以使用本函数无法使用远端DNS解析，要想使用远端DNS解析，请使用 Dial 或 DialTCPSAddr 函数。
-	DialTCP(net string, laddr, raddr *net.TCPAddr) (TCPConn, error)
+	DialTCP(net string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error)
 	// DialTCPSAddr 同 DialTCP 函数，主要区别是如果代理支持远端dns解析，那么会使用远端dns解析。
-	DialTCPSAddr(network string, raddr string) (TCPConn, error)
+	DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error)
 	//ListenTCP在本地TCP地址laddr上声明并返回一个*TCPListener，net参数必须是"tcp"、"tcp4"、"tcp6"，如果laddr的端口字段为0，函数将选择一个当前可用的端口，可以用Listener的Addr方法获得该端口。
 	//ListenTCP(net string, laddr *TCPAddr) (*TCPListener, error)
 	//DialTCP在网络协议net上连接本地地址laddr和远端地址raddr。net必须是"udp"、"udp4"、"udp6"；如果laddr不是nil，将使用它作为本地地址，否则自动选择一个本地地址。
-	DialUDP(net string, laddr, raddr *net.UDPAddr) (UDPConn, error)
+	DialUDP(net string, laddr, raddr *net.UDPAddr) (ProxyUDPConn, error)
 }
 
 // 创建代理客户端
@@ -102,6 +110,8 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 		}
 	case "socks4", "socks4a", "socks5":
 		return NewSocksProxyClient(scheme, u.Host, upProxy)
+	case "http", "https":
+		return NewHttpProxyClient(scheme, u.Host, "", false, upProxy)
 	default:
 		return nil, fmt.Errorf("未识别的代理类型：%v", scheme)
 	}

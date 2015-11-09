@@ -20,7 +20,7 @@ const (
 )
 
 type SocksTCPConn struct {
-	TCPConn
+	ProxyTCPConn
 	localAddr, remoteAddr net.TCPAddr
 	localHost, remoteHost string
 	LocalPort, remotePort uint16
@@ -78,7 +78,7 @@ func (p *socksProxyClient) DialTimeout(network, address string, timeout time.Dur
 	return nil, errors.New("暂不支持")
 }
 
-func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (TCPConn, error) {
+func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error) {
 	if laddr != nil || laddr.Port != 0 {
 		return nil, errors.New("代理协议不支持指定本地地址。")
 	}
@@ -86,31 +86,34 @@ func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (T
 	return p.DialTCPSAddr(network, raddr.String())
 }
 
-func (p *socksProxyClient) DialTCPSAddr(network string, raddr string) (TCPConn, error) {
+func (p *socksProxyClient) DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error) {
 	c, err := p.upProxy.DialTCPSAddr(network, p.proxyAddr)
 	if err != nil {
 		return nil, fmt.Errorf("无法连接代理服务器 %v ，错误：%v", p.proxyAddr, err)
 	}
 
 	if err := socksLogin(c, p); err != nil {
+		c.Close()
 		return nil, fmt.Errorf("代理服务器登陆失败，错误：%v", err)
 	}
 
 	if err := socksSendCmdRequest(c, p, SocksCmdConect, raddr); err != nil {
+		c.Close()
 		return nil, fmt.Errorf("请求代理服务器建立连接失败：%v", err)
 	}
 
 	_, _, _, _, _, cerr := socksRecvCmdResponse(c, p)
 	if cerr != nil {
+		c.Close()
 		return nil, fmt.Errorf("请求代理服务器建立连接失败：%v", err)
 	}
 
-	r := SocksTCPConn{TCPConn: c, proxyClient: p} //{c,net.ResolveTCPAddr("tcp","0.0.0.0:0"),net.ResolveTCPAddr("tcp","0.0.0.0:0"),"","",0,0  p}
+	r := SocksTCPConn{ProxyTCPConn: c, proxyClient: p} //{c,net.ResolveTCPAddr("tcp","0.0.0.0:0"),net.ResolveTCPAddr("tcp","0.0.0.0:0"),"","",0,0  p}
 
 	return &r, nil
 }
 
-func (p *socksProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (UDPConn, error) {
+func (p *socksProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (ProxyUDPConn, error) {
 	return nil, errors.New("暂不支持 UDP 协议")
 }
 
@@ -133,7 +136,7 @@ func (c *SocksUDPConn) ProxyClient() ProxyClient {
 
 // 登陆 socks 代理服务器
 // 错误 err != nil ，不会关闭连接。
-func socksLogin(c TCPConn, p *socksProxyClient) error {
+func socksLogin(c ProxyTCPConn, p *socksProxyClient) error {
 	if p.proxyType == "socks4" || p.proxyType == "socks4a" {
 		return nil
 	} else if p.proxyType == "socks5" {
