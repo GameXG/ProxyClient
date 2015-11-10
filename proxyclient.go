@@ -103,7 +103,7 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 
 	switch scheme {
 	case "direct":
-		if localAddr, ok := query["LocalAddr"]; ok {
+		if localAddr, ok := query["localaddr"]; ok {
 			return NewDriectProxyClient(localAddr[0])
 		} else {
 			return NewDriectProxyClient(":0")
