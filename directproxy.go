@@ -62,8 +62,29 @@ func (p *directProxyClient) Dial(network, address string) (Conn, error) {
 }
 
 func (p *directProxyClient) DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
-	return nil, errors.New("未完成")
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	case "udp", "udp4", "udp6":
+	default:
+		return nil, fmt.Errorf("不支持的 network 类型:%v", network)
+	}
+
+	d := net.Dialer{Timeout:timeout, LocalAddr:&p.TCPLocalAddr}
+	conn, err := d.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	switch conn := conn.(type) {
+	case *net.TCPConn:
+		return &DirectTCPConn{*conn, p}, nil
+	case *net.UDPConn:
+		return &DirectUDPConn{*conn, p}, nil
+	default:
+		return nil, fmt.Errorf("内部错误：未知的连接类型。")
+	}
 }
+
 func (p *directProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error) {
 	if laddr == nil {
 		laddr = &p.TCPLocalAddr
@@ -76,11 +97,26 @@ func (p *directProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (
 }
 
 func (p *directProxyClient)DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error) {
-	addr, err := net.ResolveTCPAddr(network, raddr)
-	if err != nil {
-		return nil, fmt.Errorf("代理服务器地址错误，无法解析：%v", err)
+	return p.DialTCPSAddrTimeout(network, raddr, 0)
+}
+
+// DialTCPSAddrTimeout 同 DialTCPSAddr 函数，增加了超时功能
+func (p *directProxyClient)DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (rconn ProxyTCPConn, rerr error) {
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, fmt.Errorf("不支持的 network 类型:%v", network)
 	}
-	return p.DialTCP(network, nil, addr)
+	d := net.Dialer{Timeout:timeout, LocalAddr:&p.TCPLocalAddr}
+	conn, err := d.Dial(network, raddr)
+	if err != nil {
+		return nil, err
+	}
+
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		return &DirectTCPConn{*tcpConn, p},nil
+	}
+	return nil, fmt.Errorf("内部错误")
 }
 
 func (p *directProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (ProxyUDPConn, error) {

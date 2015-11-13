@@ -75,7 +75,14 @@ func (p *socksProxyClient) Dial(network, address string) (Conn, error) {
 }
 
 func (p *socksProxyClient) DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
-	return nil, errors.New("暂不支持")
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+		return p.DialTCPSAddrTimeout(network, address, timeout)
+	case "udp", "udp4", "udp6":
+		return nil, errors.New("暂不支持UDP协议")
+	default:
+		return nil, errors.New("未知的协议")
+	}
 }
 
 func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error) {
@@ -87,33 +94,77 @@ func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (P
 }
 
 func (p *socksProxyClient) DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error) {
-	c, err := p.upProxy.DialTCPSAddr(network, p.proxyAddr)
+	return p.DialTCPSAddrTimeout(network, raddr, 0)
+}
+
+func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (rconn ProxyTCPConn, rerr error) {
+	// 截止时间
+	finalDeadline := time.Time{}
+	if timeout != 0 {
+		finalDeadline = time.Now().Add(timeout)
+	}
+
+	c, err := p.upProxy.DialTCPSAddrTimeout(network, p.proxyAddr, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("无法连接代理服务器 %v ，错误：%v", p.proxyAddr, err)
 	}
+	ch := make(chan int, 1)
 
-	if err := socksLogin(c, p); err != nil {
-		c.Close()
-		return nil, fmt.Errorf("代理服务器登陆失败，错误：%v", err)
+	// 实际执行部分
+	run := func() {
+		if err := socksLogin(c, p); err != nil {
+			c.Close()
+			rerr = fmt.Errorf("代理服务器登陆失败，错误：%v", err)
+			ch <- 0
+			return
+		}
+
+		if err := socksSendCmdRequest(c, p, SocksCmdConect, raddr); err != nil {
+			c.Close()
+			rerr = fmt.Errorf("请求代理服务器建立连接失败：%v", err)
+			ch <- 0
+			return
+		}
+
+		_, _, _, _, _, cerr := socksRecvCmdResponse(c, p)
+		if cerr != nil {
+			c.Close()
+			rerr = fmt.Errorf("请求代理服务器建立连接失败：%v", err)
+			ch <- 0
+			return
+		}
+
+		r := SocksTCPConn{ProxyTCPConn: c, proxyClient: p} //{c,net.ResolveTCPAddr("tcp","0.0.0.0:0"),net.ResolveTCPAddr("tcp","0.0.0.0:0"),"","",0,0  p}
+
+		rconn = &r
+		ch <- 1
 	}
 
-	if err := socksSendCmdRequest(c, p, SocksCmdConect, raddr); err != nil {
-		c.Close()
-		return nil, fmt.Errorf("请求代理服务器建立连接失败：%v", err)
+	if timeout == 0 {
+		run()
+		return
+	} else {
+		c.SetDeadline(finalDeadline)
+
+		ntimeout := finalDeadline.Sub(time.Now())
+		if ntimeout <= 0 {
+			return nil, fmt.Errorf("timeout")
+		}
+		t := time.NewTimer(ntimeout)
+		defer t.Stop()
+
+		go run()
+
+		select {
+		case <-t.C:
+			return nil, fmt.Errorf("连接超时。")
+		case <-ch:
+			return
+		}
 	}
-
-	_, _, _, _, _, cerr := socksRecvCmdResponse(c, p)
-	if cerr != nil {
-		c.Close()
-		return nil, fmt.Errorf("请求代理服务器建立连接失败：%v", err)
-	}
-
-	r := SocksTCPConn{ProxyTCPConn: c, proxyClient: p} //{c,net.ResolveTCPAddr("tcp","0.0.0.0:0"),net.ResolveTCPAddr("tcp","0.0.0.0:0"),"","",0,0  p}
-
-	return &r, nil
 }
 
-func (p *socksProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (ProxyUDPConn, error) {
+func (p *socksProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (conn ProxyUDPConn, err error) {
 	return nil, errors.New("暂不支持 UDP 协议")
 }
 

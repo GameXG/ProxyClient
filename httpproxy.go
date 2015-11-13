@@ -24,10 +24,10 @@ type HttpTCPConn struct {
 }
 
 type httpProxyClient struct {
-	proxyAddr   string
-	proxyDomain string // 用于ssl证书验证
-	proxyType   string // socks4 socks5
-	//TODO: 用户名、密码
+	proxyAddr          string
+	proxyDomain        string // 用于ssl证书验证
+	proxyType          string // socks4 socks5
+							  //TODO: 用户名、密码
 	insecureSkipVerify bool
 	upProxy            ProxyClient
 }
@@ -74,7 +74,12 @@ func (p *httpProxyClient) Dial(network, address string) (Conn, error) {
 }
 
 func (p *httpProxyClient) DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
-	return nil, errors.New("暂不支持")
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+		return p.DialTCPSAddrTimeout(network, address, timeout)
+	default:
+		return nil, fmt.Errorf("不支持的协议")
+	}
 }
 
 func (p *httpProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error) {
@@ -86,56 +91,109 @@ func (p *httpProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (Pr
 }
 
 func (p *httpProxyClient) DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error) {
+	return p.DialTCPSAddrTimeout(network, raddr, 0)
+}
+
+
+func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (rconn ProxyTCPConn, rerr error) {
+	// 截止时间
+	finalDeadline := time.Time{}
+	if timeout != 0 {
+		finalDeadline = time.Now().Add(timeout)
+	}
+
 	var tlsConn *tls.Conn
-	rawConn, err := p.upProxy.DialTCPSAddr(network, p.proxyAddr)
+	rawConn, err := p.upProxy.DialTCPSAddrTimeout(network, p.proxyAddr, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("无法连接代理服务器 %v ，错误：%v", p.proxyAddr, err)
 	}
 
 	var c Conn = rawConn
 
-	if p.proxyType == "https" {
-		tlsConn = tls.Client(c, &tls.Config{ServerName: p.proxyDomain, InsecureSkipVerify: p.insecureSkipVerify})
-		if err := tlsConn.Handshake(); err != nil {
-			tlsConn.Close()
-			return nil, fmt.Errorf("TLS 协议握手错误：%v", err)
+	ch := make(chan int, 1)
+
+	// 实际执行部分
+	run := func() {
+		if p.proxyType == "https" {
+			tlsConn = tls.Client(c, &tls.Config{ServerName: p.proxyDomain, InsecureSkipVerify: p.insecureSkipVerify})
+			if err := tlsConn.Handshake(); err != nil {
+				tlsConn.Close()
+				rerr = fmt.Errorf("TLS 协议握手错误：%v", err)
+				ch <- 0
+				return
+			}
+			if p.insecureSkipVerify == false && tlsConn.VerifyHostname(p.proxyDomain) != nil {
+				tlsConn.Close()
+				rerr = fmt.Errorf("TLS 协议域名验证失败：%v", err)
+				ch <- 0
+				return
+			}
+			c = tlsConn
 		}
-		if p.insecureSkipVerify == false && tlsConn.VerifyHostname(p.proxyDomain) != nil {
-			tlsConn.Close()
-			return nil, fmt.Errorf("TLS 协议域名验证失败：%v", err)
+
+		req, err := http.NewRequest("CONNECT", p.proxyAddr, nil)
+		if err != nil {
+			c.Close()
+			rerr = fmt.Errorf("创建请求错误：%v", err)
+			ch <- 0
+			return
 		}
-		c = tlsConn
+		req.URL.Path = raddr
+		req.URL.Host = p.proxyAddr
+
+		if err := req.Write(c); err != nil {
+			c.Close()
+			rerr = fmt.Errorf("写请求错误：%v", err)
+			ch <- 0
+			return
+		}
+
+		br := bufio.NewReader(c)
+
+		res, err := http.ReadResponse(br, req)
+		if err != nil {
+			c.Close()
+			rerr = fmt.Errorf("响应格式错误：%v", err)
+			ch <- 0
+			return
+		}
+
+		if res.StatusCode != 200 {
+			c.Close()
+			rerr = fmt.Errorf("响应错误：%v", res)
+			ch <- 0
+			return
+		}
+
+		rconn = &HttpTCPConn{c, rawConn, tlsConn, net.TCPAddr{}, net.TCPAddr{}, "", "", 0, 0, p, res.Body}
+		ch <- 1
+		return
 	}
 
-	req, err := http.NewRequest("CONNECT", p.proxyAddr, nil)
-	if err != nil {
-		c.Close()
-		return nil, fmt.Errorf("创建请求错误：%v", err)
+
+	if timeout == 0 {
+		run()
+		return
+	} else {
+		c.SetDeadline(finalDeadline)
+
+		ntimeout := finalDeadline.Sub(time.Now())
+		if ntimeout <= 0 {
+			return nil, fmt.Errorf("timeout")
+		}
+		t := time.NewTimer(ntimeout)
+		defer t.Stop()
+
+		go run()
+
+		select {
+		case <-t.C:
+			return nil, fmt.Errorf("连接超时。")
+		case <-ch:
+			return
+		}
 	}
-	req.URL.Path = raddr
-	req.URL.Host = p.proxyAddr
-
-	if err := req.Write(c); err != nil {
-		c.Close()
-		return nil, fmt.Errorf("写请求错误：%v", err)
-	}
-
-	br := bufio.NewReader(c)
-
-	res, err := http.ReadResponse(br, req)
-	if err != nil {
-		c.Close()
-		return nil, fmt.Errorf("响应格式错误：%v", err)
-	}
-
-	if res.StatusCode != 200 {
-		c.Close()
-		return nil, fmt.Errorf("响应错误：%v", res)
-	}
-
-	return &HttpTCPConn{c, rawConn, tlsConn, net.TCPAddr{}, net.TCPAddr{}, "", "", 0, 0, p, res.Body}, nil
 }
-
 // 重写了 Read 接口
 // 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
 func (c *HttpTCPConn) Read(b []byte) (n int, err error) {

@@ -27,12 +27,12 @@ func testHttpProixyServer(t *testing.T, proxyAddr string, rAddr string, ci chan 
 
 	b := make([]byte, 1024)
 
-	if n, err := c.Read(b); err != nil {
+	if _, err := c.Read(b); err != nil {
 		t.Fatal("读错误：%v", err)
-	}else {
+	}/*else {
 		b = b[:n]
 		print(b)
-	}
+	}*/
 
 	connect := CONNECT + " " + rAddr
 
@@ -45,12 +45,12 @@ func testHttpProixyServer(t *testing.T, proxyAddr string, rAddr string, ci chan 
 	}
 
 
-	if n, err := c.Read(b[:1024]); err != nil {
+	if _, err := c.Read(b[:1024]); err != nil {
 		t.Fatal("读错误：%v", err)
-	}else {
+	}/*else {
 		b = b[:n]
 		print(b)
-	}
+	}*/
 
 
 	if _, err := c.Write([]byte("HTTP/1.0 200 ok\r\nHead1:11111\r\n\r\nHello Word!")); err != nil {
