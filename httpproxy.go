@@ -63,7 +63,7 @@ func NewHttpProxyClient(proxyType string, proxyAddr string, proxyDomain string, 
 	return &httpProxyClient{proxyAddr, proxyDomain, proxyType, insecureSkipVerify, upProxy}, nil
 }
 
-func (p *httpProxyClient) Dial(network, address string) (Conn, error) {
+func (p *httpProxyClient) Dial(network, address string) (net.Conn, error) {
 	if strings.HasPrefix(strings.ToLower(network), "tcp") {
 		return p.DialTCPSAddr(network, address)
 	} else if strings.HasPrefix(strings.ToLower(network), "udp") {
@@ -73,7 +73,7 @@ func (p *httpProxyClient) Dial(network, address string) (Conn, error) {
 	}
 }
 
-func (p *httpProxyClient) DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
+func (p *httpProxyClient) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 		return p.DialTCPSAddrTimeout(network, address, timeout)
@@ -82,7 +82,7 @@ func (p *httpProxyClient) DialTimeout(network, address string, timeout time.Dura
 	}
 }
 
-func (p *httpProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error) {
+func (p *httpProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (net.Conn, error) {
 	if laddr != nil || laddr.Port != 0 {
 		return nil, errors.New("代理协议不支持指定本地地址。")
 	}
@@ -214,7 +214,7 @@ func (c *HttpTCPConn) SetWriteBuffer(bytes int) error {
 	return c.rawConn.SetWriteBuffer(bytes)
 }
 
-func (p *httpProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (ProxyUDPConn, error) {
+func (p *httpProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (net.Conn, error) {
 	return nil, fmt.Errorf("%v 代理不支持 UDP 转发。", p.proxyType)
 }
 

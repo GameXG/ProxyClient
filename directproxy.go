@@ -43,7 +43,7 @@ func NewDriectProxyClient(localAddr string) (ProxyClient, error) {
 	return &directProxyClient{*tcpAddr, *udpAddr}, nil
 }
 
-func (p *directProxyClient) Dial(network, address string) (Conn, error) {
+func (p *directProxyClient) Dial(network, address string) (net.Conn, error) {
 	if strings.HasPrefix(network, "tcp") {
 		addr, err := net.ResolveTCPAddr(network, address)
 		if err != nil {
@@ -61,7 +61,7 @@ func (p *directProxyClient) Dial(network, address string) (Conn, error) {
 	}
 }
 
-func (p *directProxyClient) DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
+func (p *directProxyClient) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	case "udp", "udp4", "udp6":
@@ -85,7 +85,7 @@ func (p *directProxyClient) DialTimeout(network, address string, timeout time.Du
 	}
 }
 
-func (p *directProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error) {
+func (p *directProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (net.Conn, error) {
 	if laddr == nil {
 		laddr = &p.TCPLocalAddr
 	}
@@ -119,7 +119,7 @@ func (p *directProxyClient)DialTCPSAddrTimeout(network string, raddr string, tim
 	return nil, fmt.Errorf("内部错误")
 }
 
-func (p *directProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (ProxyUDPConn, error) {
+func (p *directProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (net.Conn, error) {
 	if laddr == nil {
 		laddr = &p.UDPLocalAddr
 	}

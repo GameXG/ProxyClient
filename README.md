@@ -82,10 +82,8 @@ type ProxyUDPConn interface {
 // 仿 net 库接口的代理客户端
 // 支持级联代理功能，可以通过 SetUpProxy 设置上级代理。
 type ProxyClient interface {
-
 	// 返回本代理的上层级联代理
 	UpProxy() ProxyClient
-	
 	// 设置本代理的上层代理
 	SetUpProxy(upProxy ProxyClient) error
 
@@ -93,22 +91,19 @@ type ProxyClient interface {
 	// "tcp"、"tcp4"、"tcp6"、"udp"、"udp4"、"udp6"
 	// 对TCP和UDP网络，地址格式是host:port或[host]:port，参见函数JoinHostPort和SplitHostPort。
 	// 如果代理服务器支持远端DNS解析，那么会使用远端DNS解析。
-	Dial(network, address string) (Conn, error)
-	
-	DialTimeout(network, address string, timeout time.Duration) (Conn, error)
-	
+	Dial(network, address string) (net.Conn, error)
+	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
 	// DialTCP在网络协议net上连接本地地址laddr和远端地址raddr。net必须是"tcp"、"tcp4"、"tcp6"；如果laddr不是nil，将使用它作为本地地址，否则自动选择一个本地地址。
 	// 由于 net.TCPAddr 内部保存的是IP地址及端口，所以使用本函数无法使用远端DNS解析，要想使用远端DNS解析，请使用 Dial 或 DialTCPSAddr 函数。
-	DialTCP(net string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error)
-	
+	DialTCP(net string, laddr, raddr *net.TCPAddr) (net.Conn, error)
 	// DialTCPSAddr 同 DialTCP 函数，主要区别是如果代理支持远端dns解析，那么会使用远端dns解析。
 	DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error)
-	
+	// DialTCPSAddrTimeout 同 DialTCPSAddr 函数，增加了超时功能
+	DialTCPSAddrTimeout(network string, raddr string,timeour time.Duration) (ProxyTCPConn, error)
 	//ListenTCP在本地TCP地址laddr上声明并返回一个*TCPListener，net参数必须是"tcp"、"tcp4"、"tcp6"，如果laddr的端口字段为0，函数将选择一个当前可用的端口，可以用Listener的Addr方法获得该端口。
 	//ListenTCP(net string, laddr *TCPAddr) (*TCPListener, error)
-	
 	//DialTCP在网络协议net上连接本地地址laddr和远端地址raddr。net必须是"udp"、"udp4"、"udp6"；如果laddr不是nil，将使用它作为本地地址，否则自动选择一个本地地址。
-	DialUDP(net string, laddr, raddr *net.UDPAddr) (ProxyUDPConn, error)
+	DialUDP(net string, laddr, raddr *net.UDPAddr) (net.Conn, error)
 }
 
 // 创建代理客户端

@@ -60,7 +60,7 @@ func NewSocksProxyClient(proxyType string, proxyAddr string, upProxy ProxyClient
 	return &socksProxyClient{proxyAddr, proxyType, upProxy}, nil
 }
 
-func (p *socksProxyClient) Dial(network, address string) (Conn, error) {
+func (p *socksProxyClient) Dial(network, address string) (net.Conn, error) {
 	if strings.HasPrefix(strings.ToLower(network), "tcp") {
 		return p.DialTCPSAddr(network, address)
 	} else if strings.HasPrefix(strings.ToLower(network), "udp") {
@@ -74,7 +74,7 @@ func (p *socksProxyClient) Dial(network, address string) (Conn, error) {
 	}
 }
 
-func (p *socksProxyClient) DialTimeout(network, address string, timeout time.Duration) (Conn, error) {
+func (p *socksProxyClient) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 		return p.DialTCPSAddrTimeout(network, address, timeout)
@@ -85,7 +85,7 @@ func (p *socksProxyClient) DialTimeout(network, address string, timeout time.Dur
 	}
 }
 
-func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ProxyTCPConn, error) {
+func (p *socksProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (net.Conn, error) {
 	if laddr != nil || laddr.Port != 0 {
 		return nil, errors.New("代理协议不支持指定本地地址。")
 	}
@@ -164,7 +164,7 @@ func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, tim
 	}
 }
 
-func (p *socksProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (conn ProxyUDPConn, err error) {
+func (p *socksProxyClient) DialUDP(network string, laddr, raddr *net.UDPAddr) (conn net.Conn, err error) {
 	return nil, errors.New("暂不支持 UDP 协议")
 }
 
@@ -187,7 +187,7 @@ func (c *SocksUDPConn) ProxyClient() ProxyClient {
 
 // 登陆 socks 代理服务器
 // 错误 err != nil ，不会关闭连接。
-func socksLogin(c ProxyTCPConn, p *socksProxyClient) error {
+func socksLogin(c net.Conn, p *socksProxyClient) error {
 	if p.proxyType == "socks4" || p.proxyType == "socks4a" {
 		return nil
 	} else if p.proxyType == "socks5" {
