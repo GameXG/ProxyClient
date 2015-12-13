@@ -37,27 +37,28 @@ type socksProxyClient struct {
 	proxyType string // socks4 socks5
 					 //TODO: 用户名、密码
 	upProxy   ProxyClient
+	query        map[string][]string
 }
 
 // 创建代理客户端
 // ProxyType	socks4 socks5
 // ProxyAddr 	127.0.0.1:5555
 // UpProxy
-func NewSocksProxyClient(proxyType string, proxyAddr string, upProxy ProxyClient) (ProxyClient, error) {
+func NewSocksProxyClient(proxyType string, proxyAddr string, upProxy ProxyClient,query map[string][]string) (ProxyClient, error) {
 	proxyType = strings.ToLower(strings.Trim(proxyType, " \r\n\t"))
 	if proxyType != "socks4" && proxyType != "socks5" {
 		return nil, errors.New("ProxyType 错误的格式")
 	}
 
 	if upProxy == nil {
-		nUpProxy, err := NewDriectProxyClient("")
+		nUpProxy, err := NewDriectProxyClient("",make(map[string][]string))
 		if err != nil {
 			return nil, fmt.Errorf("创建直连代理错误：%v", err)
 		}
 		upProxy = nUpProxy
 	}
 
-	return &socksProxyClient{proxyAddr, proxyType, upProxy}, nil
+	return &socksProxyClient{proxyAddr, proxyType, upProxy,query}, nil
 }
 
 func (p *socksProxyClient) Dial(network, address string) (net.Conn, error) {
@@ -399,4 +400,8 @@ func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr st
 		err = fmt.Errorf("%v 不支持的协议类型", p.proxyType)
 		return
 	}
+}
+
+func (c *socksProxyClient)GetProxyAddrQuery() map[string][]string {
+	return c.query
 }

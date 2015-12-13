@@ -21,11 +21,12 @@ type DirectUDPConn struct {
 type directProxyClient struct {
 	TCPLocalAddr net.TCPAddr
 	UDPLocalAddr net.UDPAddr
+	query        map[string][]string
 }
 
 // 创建代理客户端
 // 直连 direct://0.0.0.0:0000/?LocalAddr=123.123.123.123:0
-func NewDriectProxyClient(localAddr string) (ProxyClient, error) {
+func NewDriectProxyClient(localAddr string, query map[string][]string) (ProxyClient, error) {
 	if localAddr == "" {
 		localAddr = "0.0.0.0:0"
 	}
@@ -40,7 +41,7 @@ func NewDriectProxyClient(localAddr string) (ProxyClient, error) {
 		return nil, errors.New("LocalAddr 错误的格式")
 	}
 
-	return &directProxyClient{*tcpAddr, *udpAddr}, nil
+	return &directProxyClient{*tcpAddr, *udpAddr, query}, nil
 }
 
 func (p *directProxyClient) Dial(network, address string) (net.Conn, error) {
@@ -114,7 +115,7 @@ func (p *directProxyClient)DialTCPSAddrTimeout(network string, raddr string, tim
 	}
 
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		return &DirectTCPConn{*tcpConn, p},nil
+		return &DirectTCPConn{*tcpConn, p}, nil
 	}
 	return nil, fmt.Errorf("内部错误")
 }
@@ -140,4 +141,7 @@ func (c *DirectTCPConn) ProxyClient() ProxyClient {
 }
 func (c *DirectUDPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
+}
+func (c *directProxyClient)GetProxyAddrQuery() map[string][]string {
+	return c.query
 }

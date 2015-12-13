@@ -30,6 +30,7 @@ type httpProxyClient struct {
 							  //TODO: 用户名、密码
 	insecureSkipVerify bool
 	upProxy            ProxyClient
+	query              map[string][]string
 }
 
 // 创建代理客户端
@@ -38,14 +39,14 @@ type httpProxyClient struct {
 // proxyDomain				ssl 验证域名，"" 则使用 proxyAddr 部分的域名
 // insecureSkipVerify		使用https代理时是否忽略证书检查
 // UpProxy
-func NewHttpProxyClient(proxyType string, proxyAddr string, proxyDomain string, insecureSkipVerify bool, upProxy ProxyClient) (ProxyClient, error) {
+func NewHttpProxyClient(proxyType string, proxyAddr string, proxyDomain string, insecureSkipVerify bool, upProxy ProxyClient, query        map[string][]string) (ProxyClient, error) {
 	proxyType = strings.ToLower(strings.Trim(proxyType, " \r\n\t"))
 	if proxyType != "http" && proxyType != "https" {
 		return nil, errors.New("ProxyType 错误的格式，只支持http、https代理。")
 	}
 
 	if upProxy == nil {
-		nUpProxy, err := NewDriectProxyClient("")
+		nUpProxy, err := NewDriectProxyClient("", make(map[string][]string))
 		if err != nil {
 			return nil, fmt.Errorf("创建直连代理错误：%v", err)
 		}
@@ -60,7 +61,7 @@ func NewHttpProxyClient(proxyType string, proxyAddr string, proxyDomain string, 
 		proxyDomain = host
 	}
 
-	return &httpProxyClient{proxyAddr, proxyDomain, proxyType, insecureSkipVerify, upProxy}, nil
+	return &httpProxyClient{proxyAddr, proxyDomain, proxyType, insecureSkipVerify, upProxy, query}, nil
 }
 
 func (p *httpProxyClient) Dial(network, address string) (net.Conn, error) {
@@ -229,4 +230,8 @@ func (p *httpProxyClient) SetUpProxy(upProxy ProxyClient) error {
 
 func (c *HttpTCPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
+}
+
+func (c *httpProxyClient)GetProxyAddrQuery() map[string][]string {
+	return c.query
 }

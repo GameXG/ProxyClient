@@ -69,11 +69,15 @@ type ProxyClient interface {
 	// DialTCPSAddr 同 DialTCP 函数，主要区别是如果代理支持远端dns解析，那么会使用远端dns解析。
 	DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error)
 	// DialTCPSAddrTimeout 同 DialTCPSAddr 函数，增加了超时功能
-	DialTCPSAddrTimeout(network string, raddr string,timeour time.Duration) (ProxyTCPConn, error)
+	DialTCPSAddrTimeout(network string, raddr string, timeour time.Duration) (ProxyTCPConn, error)
 	//ListenTCP在本地TCP地址laddr上声明并返回一个*TCPListener，net参数必须是"tcp"、"tcp4"、"tcp6"，如果laddr的端口字段为0，函数将选择一个当前可用的端口，可以用Listener的Addr方法获得该端口。
 	//ListenTCP(net string, laddr *TCPAddr) (*TCPListener, error)
 	//DialTCP在网络协议net上连接本地地址laddr和远端地址raddr。net必须是"udp"、"udp4"、"udp6"；如果laddr不是nil，将使用它作为本地地址，否则自动选择一个本地地址。
 	DialUDP(net string, laddr, raddr *net.UDPAddr) (net.Conn, error)
+
+	// 获得 Proxy 代理地址的 Query
+	// 为了大小写兼容，key全部是转换成小写的。
+	GetProxyAddrQuery() map[string][]string
 }
 
 // 创建代理客户端
@@ -98,7 +102,7 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 
 	var upProxy ProxyClient = nil
 	if up, ok := query["upproxy"]; ok == true {
-		if upProxy, err = NewDriectProxyClient(up[0]); err != nil {
+		if upProxy, err = NewProxyClient(up[0]); err != nil {
 			return nil, fmt.Errorf("upProxy 创建失败：%v", err)
 		}
 	}
@@ -106,14 +110,14 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 	switch scheme {
 	case "direct":
 		if localAddr, ok := query["localaddr"]; ok {
-			return NewDriectProxyClient(localAddr[0])
+			return NewDriectProxyClient(localAddr[0],query)
 		} else {
-			return NewDriectProxyClient(":0")
+			return NewDriectProxyClient(":0",query)
 		}
 	case "socks4", "socks4a", "socks5":
-		return NewSocksProxyClient(scheme, u.Host, upProxy)
+		return NewSocksProxyClient(scheme, u.Host, upProxy,query)
 	case "http", "https":
-		return NewHttpProxyClient(scheme, u.Host, "", false, upProxy)
+		return NewHttpProxyClient(scheme, u.Host, "", false, upProxy,query)
 	default:
 		return nil, fmt.Errorf("未识别的代理类型：%v", scheme)
 	}

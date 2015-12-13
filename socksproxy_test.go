@@ -63,7 +63,7 @@ func testSocks5ProixyServer(t *testing.T, proxyAddr string, attypAddr []byte, po
 
 func testSocks5ProxyClient(t *testing.T, proxyAddr string, addr string) {
 	b := make([]byte, 30)
-	p, err := NewSocksProxyClient("socks5", proxyAddr, nil)
+	p, err := NewSocksProxyClient("socks5", proxyAddr, nil,make(map[string][]string))
 	if err != nil {
 		t.Errorf("启动代理错误:%v", err)
 	}
