@@ -20,7 +20,7 @@ type HttpTCPConn struct {
 	localHost, remoteHost string
 	LocalPort, remotePort uint16
 	proxyClient           ProxyClient
-	r                     io.Reader
+	r                     io.ReadCloser // http Body
 }
 
 type httpProxyClient struct {
@@ -199,6 +199,12 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 // 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
 func (c *HttpTCPConn) Read(b []byte) (n int, err error) {
 	return c.r.Read(b)
+}
+// 重写了 Read 接口
+// 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
+func (c *HttpTCPConn) Close()   error {
+	c.r.Close()
+	return c.Conn.Close()
 }
 
 func (c *HttpTCPConn) SetLinger(sec int) error {
