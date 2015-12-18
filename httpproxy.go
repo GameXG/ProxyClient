@@ -13,9 +13,9 @@ import (
 )
 
 type HttpTCPConn struct {
-	Conn                            //http 协议时是原始链接、https协议时是tls.Conn
-	rawConn               TCPConn   //原始链接
-	tlsConn               *tls.Conn //tls链接
+	Conn                                //http 协议时是原始链接、https协议时是tls.Conn
+	rawConn               TCPConn       //原始链接
+	tlsConn               *tls.Conn     //tls链接
 	localAddr, remoteAddr net.TCPAddr
 	localHost, remoteHost string
 	LocalPort, remotePort uint16
@@ -129,18 +129,24 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 				ch <- 0
 				return
 			}
+
 			c = tlsConn
 		}
 
-		req, err := http.NewRequest("CONNECT", p.proxyAddr, nil)
+		req, err := http.NewRequest("CONNECT", raddr, nil)
 		if err != nil {
 			c.Close()
 			rerr = fmt.Errorf("创建请求错误：%v", err)
 			ch <- 0
 			return
 		}
-		req.URL.Path = raddr
-		req.URL.Host = p.proxyAddr
+		//req.URL.Path = raddr
+		req.URL.Host = raddr
+		req.Host = raddr
+
+		for i := 0; i < 10; i++ {
+			req.Header.Add(fmt.Sprint("kkkkkkkkkkkk-", i), "kkkkkkkkkkkkkkkkkkkkkk")
+		}
 
 		if err := req.Write(c); err != nil {
 			c.Close()
@@ -148,6 +154,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			ch <- 0
 			return
 		}
+
 
 		br := bufio.NewReader(c)
 
@@ -202,7 +209,7 @@ func (c *HttpTCPConn) Read(b []byte) (n int, err error) {
 }
 // 重写了 Read 接口
 // 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
-func (c *HttpTCPConn) Close()   error {
+func (c *HttpTCPConn) Close() error {
 	c.r.Close()
 	return c.Conn.Close()
 }
