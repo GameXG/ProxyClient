@@ -1,8 +1,6 @@
-# ProxyClient   
-[![Build Status](https://travis-ci.org/GameXG/ProxyClient.svg?branch=master)](https://travis-ci.org/GameXG/ProxyClient)
-
+# ProxyClient
 golang 代理客户端，和 net 标准库一致的 API 。
-支持嵌套代理，支持 socks4、socks4a、socks5、http、https代理协议。
+支持嵌套代理，支持 socks4、socks4a、socks5、http、https、ss 代理协议。
 
 
 ``` go
