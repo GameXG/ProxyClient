@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	p, err := proxyclient.NewProxyClient("socks5://127.0.0.1:5556")
+	p, err := proxyclient.NewProxyClient("socks5://127.0.0.1:5556?upProxy=https://145.2.1.3:8080")
 	if err != nil {
 		panic("创建代理客户端错误")
 	}
