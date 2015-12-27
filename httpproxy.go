@@ -238,6 +238,9 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		case <-t.C:
 			return nil, fmt.Errorf("连接超时。")
 		case <-ch:
+			if rerr == nil {
+				c.SetDeadline(time.Time{})
+			}
 			return
 		}
 	}

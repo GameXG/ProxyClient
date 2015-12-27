@@ -116,14 +116,14 @@ func (p *SsProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeou
 		// 当连接不被使用时，ch<-1会引发异常，这时将关闭连接。
 		defer func() {
 			e := recover()
-			if e != nil && closed==false {
+			if e != nil && closed == false {
 				sc.Close()
 			}
 		}()
 
 
 		if _, err := sc.Write(ra); err != nil {
-			closed =true
+			closed = true
 			sc.Close()
 			rerr = err
 			ch <- 0
@@ -159,6 +159,9 @@ func (p *SsProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeou
 		case <-t.C:
 			return nil, fmt.Errorf("连接超时。")
 		case <-ch:
+			if rerr == nil {
+				c.SetDeadline(time.Time{})
+			}
 			return
 		}
 	}

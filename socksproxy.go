@@ -177,6 +177,9 @@ func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, tim
 		case <-t.C:
 			return nil, fmt.Errorf("连接超时。")
 		case <-ch:
+			if rerr == nil {
+				c.SetDeadline(time.Time{})
+			}
 			return
 		}
 	}
