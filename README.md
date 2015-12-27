@@ -101,11 +101,15 @@ type ProxyClient interface {
 	// DialTCPSAddr 同 DialTCP 函数，主要区别是如果代理支持远端dns解析，那么会使用远端dns解析。
 	DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error)
 	// DialTCPSAddrTimeout 同 DialTCPSAddr 函数，增加了超时功能
-	DialTCPSAddrTimeout(network string, raddr string,timeour time.Duration) (ProxyTCPConn, error)
+	DialTCPSAddrTimeout(network string, raddr string, timeour time.Duration) (ProxyTCPConn, error)
 	//ListenTCP在本地TCP地址laddr上声明并返回一个*TCPListener，net参数必须是"tcp"、"tcp4"、"tcp6"，如果laddr的端口字段为0，函数将选择一个当前可用的端口，可以用Listener的Addr方法获得该端口。
 	//ListenTCP(net string, laddr *TCPAddr) (*TCPListener, error)
 	//DialTCP在网络协议net上连接本地地址laddr和远端地址raddr。net必须是"udp"、"udp4"、"udp6"；如果laddr不是nil，将使用它作为本地地址，否则自动选择一个本地地址。
 	DialUDP(net string, laddr, raddr *net.UDPAddr) (net.Conn, error)
+
+	// 获得 Proxy 代理地址的 Query
+	// 为了大小写兼容，key全部是转换成小写的。
+	GetProxyAddrQuery() map[string][]string
 }
 
 // 创建代理客户端
@@ -114,6 +118,7 @@ type ProxyClient interface {
 // socks4 代理 socks4://123.123.123.123:5050  socks4 协议不支持远端 dns 解析
 // socks4a 代理 socks4a://123.123.123.123:5050
 // socks5 代理 socks5://123.123.123.123:5050?upProxy=http://145.2.1.3:8080
+// ss 代理 ss://method:passowd@123.123.123:5050
 // 直连 direct://0.0.0.0:0000/?LocalAddr=123.123.123.123:0
 func NewProxyClient(addr string) (ProxyClient, error)
 
