@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"crypto/rand"
+	srand "math/rand"
+	"math/big"
 )
 
 type HttpTCPConn struct {
@@ -144,9 +147,27 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		req.URL.Host = raddr
 		req.Host = raddr
 
-		for i := 0; i < 10; i++ {
-			req.Header.Add(fmt.Sprint("kkkkkkkkkkkk-", i), "kkkkkkkkkkkkkkkkkkkkkk")
+
+		// 故意追加内容，匹配普通 http 请求长度
+		xpath := "/"
+		rInt, err := rand.Int(rand.Reader, big.NewInt(20))
+		var rInt64 int64
+		if err != nil {
+			rInt64 = srand.Int63n(20)
+		}else {
+			rInt64 = rInt.Int64()
 		}
+
+		for i := int64(-10); i < rInt64; i++ {
+			xpath += "X"
+		}
+
+		req.Header.Add("Accept", "text/html, application/xhtml+xml, image/jxr, */*")
+		req.Header.Add("Accept-Encoding", "gzip, deflate")
+		req.Header.Add("Accept-Language", "zh-CN")
+		req.Header.Add("XXnnection", "Keep-Alive")
+		req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/000.00 (KHTML, like Gecko) Chrome/00.0.0000.0 Safari/000.00 Edge/00.00000")
+		req.Header.Add("Cookie+path", xpath)
 
 		if err := req.Write(c); err != nil {
 			c.Close()
