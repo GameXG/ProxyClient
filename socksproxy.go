@@ -37,28 +37,28 @@ type socksProxyClient struct {
 	proxyType string // socks4 socks5
 					 //TODO: 用户名、密码
 	upProxy   ProxyClient
-	query        map[string][]string
+	query     map[string][]string
 }
 
 // 创建代理客户端
 // ProxyType	socks4 socks5
 // ProxyAddr 	127.0.0.1:5555
 // UpProxy
-func NewSocksProxyClient(proxyType string, proxyAddr string, upProxy ProxyClient,query map[string][]string) (ProxyClient, error) {
+func NewSocksProxyClient(proxyType string, proxyAddr string, upProxy ProxyClient, query map[string][]string) (ProxyClient, error) {
 	proxyType = strings.ToLower(strings.Trim(proxyType, " \r\n\t"))
 	if proxyType != "socks4" && proxyType != "socks5" {
 		return nil, errors.New("ProxyType 错误的格式")
 	}
 
 	if upProxy == nil {
-		nUpProxy, err := NewDriectProxyClient("",make(map[string][]string))
+		nUpProxy, err := NewDriectProxyClient("", make(map[string][]string))
 		if err != nil {
 			return nil, fmt.Errorf("创建直连代理错误：%v", err)
 		}
 		upProxy = nUpProxy
 	}
 
-	return &socksProxyClient{proxyAddr, proxyType, upProxy,query}, nil
+	return &socksProxyClient{proxyAddr, proxyType, upProxy, query}, nil
 }
 
 func (p *socksProxyClient) Dial(network, address string) (net.Conn, error) {
@@ -109,11 +109,22 @@ func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, tim
 	if err != nil {
 		return nil, fmt.Errorf("无法连接代理服务器 %v ，错误：%v", p.proxyAddr, err)
 	}
-	ch := make(chan int, 1)
+	ch := make(chan int)
 
 	// 实际执行部分
 	run := func() {
+
+		closed := false
+		// 当连接不被使用时，ch<-1会引发异常，这时将关闭连接。
+		defer func() {
+			e := recover()
+			if e != nil && closed == false {
+				c.Close()
+			}
+		}()
+
 		if err := socksLogin(c, p); err != nil {
+			closed = true
 			c.Close()
 			rerr = fmt.Errorf("代理服务器登陆失败，错误：%v", err)
 			ch <- 0
@@ -121,6 +132,7 @@ func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, tim
 		}
 
 		if err := socksSendCmdRequest(c, p, SocksCmdConect, raddr); err != nil {
+			closed = true
 			c.Close()
 			rerr = fmt.Errorf("请求代理服务器建立连接失败：%v", err)
 			ch <- 0
@@ -129,6 +141,7 @@ func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, tim
 
 		_, _, _, _, _, cerr := socksRecvCmdResponse(c, p)
 		if cerr != nil {
+			closed = true
 			c.Close()
 			rerr = fmt.Errorf("请求代理服务器建立连接失败：%v", err)
 			ch <- 0
@@ -142,8 +155,12 @@ func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, tim
 	}
 
 	if timeout == 0 {
-		run()
-		return
+		go run()
+
+		select {
+		case <-ch:
+			return
+		}
 	} else {
 		c.SetDeadline(finalDeadline)
 

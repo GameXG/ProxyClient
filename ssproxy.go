@@ -104,15 +104,28 @@ func (p *SsProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeou
 	if err != nil {
 		return nil, fmt.Errorf("无法连接代理服务器 %v ，错误：%v", p.proxyAddr, err)
 	}
-	ch := make(chan int, 1)
+	ch := make(chan int)
+	defer close(ch)
+
 
 	// 实际执行部分
 	run := func() {
 		sc := ss.NewConn(c, p.cipher.Copy())
 
+		closed := false
+		// 当连接不被使用时，ch<-1会引发异常，这时将关闭连接。
+		defer func() {
+			e := recover()
+			if e != nil && closed==false {
+				sc.Close()
+			}
+		}()
+
+
 		if _, err := sc.Write(ra); err != nil {
+			closed =true
 			sc.Close()
-			rerr=err
+			rerr = err
 			ch <- 0
 			return
 		}
@@ -124,8 +137,12 @@ func (p *SsProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeou
 	}
 
 	if timeout == 0 {
-		run()
-		return
+		go run()
+
+		select {
+		case <-ch:
+			return
+		}
 	} else {
 		c.SetDeadline(finalDeadline)
 
@@ -170,7 +187,7 @@ func (c *SsTCPConn) Read(b []byte) (n int, err error) {
 	return c.sc.Read(b)
 }
 
-func (c *SsTCPConn) Close() error{
+func (c *SsTCPConn) Close() error {
 	return c.sc.Close()
 }
 

@@ -114,19 +114,30 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 
 	var c Conn = rawConn
 
-	ch := make(chan int, 1)
+	ch := make(chan int)
 
 	// 实际执行部分
 	run := func() {
+		closed := false
+		// 当连接不被使用时，ch<-1会引发异常，这时将关闭连接。
+		defer func() {
+			e := recover()
+			if e != nil && closed == false {
+				c.Close()
+			}
+		}()
+
 		if p.proxyType == "https" {
 			tlsConn = tls.Client(c, &tls.Config{ServerName: p.proxyDomain, InsecureSkipVerify: p.insecureSkipVerify})
 			if err := tlsConn.Handshake(); err != nil {
-				tlsConn.Close()
+				closed = true
+				c.Close()
 				rerr = fmt.Errorf("TLS 协议握手错误：%v", err)
 				ch <- 0
 				return
 			}
 			if p.insecureSkipVerify == false && tlsConn.VerifyHostname(p.proxyDomain) != nil {
+				closed = true
 				tlsConn.Close()
 				rerr = fmt.Errorf("TLS 协议域名验证失败：%v", err)
 				ch <- 0
@@ -138,6 +149,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 
 		req, err := http.NewRequest("CONNECT", raddr, nil)
 		if err != nil {
+			closed = true
 			c.Close()
 			rerr = fmt.Errorf("创建请求错误：%v", err)
 			ch <- 0
@@ -170,6 +182,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		req.Header.Add("Cookie+path", xpath)
 
 		if err := req.Write(c); err != nil {
+			closed = true
 			c.Close()
 			rerr = fmt.Errorf("写请求错误：%v", err)
 			ch <- 0
@@ -181,6 +194,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 
 		res, err := http.ReadResponse(br, req)
 		if err != nil {
+			closed = true
 			c.Close()
 			rerr = fmt.Errorf("响应格式错误：%v", err)
 			ch <- 0
@@ -188,6 +202,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		}
 
 		if res.StatusCode != 200 {
+			closed = true
 			c.Close()
 			rerr = fmt.Errorf("响应错误：%v", res)
 			ch <- 0
@@ -201,8 +216,12 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 
 
 	if timeout == 0 {
-		run()
-		return
+		go run()
+
+		select {
+		case <-ch:
+			return
+		}
 	} else {
 		c.SetDeadline(finalDeadline)
 

@@ -63,7 +63,7 @@ func TestSsProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, err := p.Dial("tcp", testAddr)
+	c, err := p.DialTimeout("tcp", testAddr,1*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
