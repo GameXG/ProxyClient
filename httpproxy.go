@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	srand "math/rand"
 	"math/big"
+	"sync"
 )
 
 type HttpTCPConn struct {
@@ -99,7 +100,11 @@ func (p *httpProxyClient) DialTCPSAddr(network string, raddr string) (ProxyTCPCo
 }
 
 
-func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (rconn ProxyTCPConn, rerr error) {
+func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (ProxyTCPConn, error) {
+	var rconn ProxyTCPConn
+	var rerr error
+	rMutex := sync.Mutex{}
+
 	// 截止时间
 	finalDeadline := time.Time{}
 	if timeout != 0 {
@@ -132,14 +137,18 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			if err := tlsConn.Handshake(); err != nil {
 				closed = true
 				c.Close()
+				rMutex.Lock()
 				rerr = fmt.Errorf("TLS 协议握手错误：%v", err)
+				rMutex.Unlock()
 				ch <- 0
 				return
 			}
 			if p.insecureSkipVerify == false && tlsConn.VerifyHostname(p.proxyDomain) != nil {
 				closed = true
 				tlsConn.Close()
+				rMutex.Lock()
 				rerr = fmt.Errorf("TLS 协议域名验证失败：%v", err)
+				rMutex.Unlock()
 				ch <- 0
 				return
 			}
@@ -151,7 +160,9 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		if err != nil {
 			closed = true
 			c.Close()
+			rMutex.Lock()
 			rerr = fmt.Errorf("创建请求错误：%v", err)
+			rMutex.Unlock()
 			ch <- 0
 			return
 		}
@@ -184,7 +195,9 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		if err := req.Write(c); err != nil {
 			closed = true
 			c.Close()
+			rMutex.Lock()
 			rerr = fmt.Errorf("写请求错误：%v", err)
+			rMutex.Unlock()
 			ch <- 0
 			return
 		}
@@ -196,7 +209,9 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		if err != nil {
 			closed = true
 			c.Close()
+			rMutex.Lock()
 			rerr = fmt.Errorf("响应格式错误：%v", err)
+			rMutex.Unlock()
 			ch <- 0
 			return
 		}
@@ -204,12 +219,16 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		if res.StatusCode != 200 {
 			closed = true
 			c.Close()
+			rMutex.Lock()
 			rerr = fmt.Errorf("响应错误：%v", res)
+			rMutex.Unlock()
 			ch <- 0
 			return
 		}
 
+		rMutex.Lock()
 		rconn = &HttpTCPConn{c, rawConn, tlsConn, net.TCPAddr{}, net.TCPAddr{}, "", "", 0, 0, p, res.Body}
+		rMutex.Unlock()
 		ch <- 1
 		return
 	}
@@ -220,7 +239,9 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 
 		select {
 		case <-ch:
-			return
+			rMutex.Lock()
+			defer rMutex.Unlock()
+			return rconn,rerr
 		}
 	} else {
 		c.SetDeadline(finalDeadline)
@@ -238,10 +259,12 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		case <-t.C:
 			return nil, fmt.Errorf("连接超时。")
 		case <-ch:
+			rMutex.Lock()
+			defer rMutex.Unlock()
 			if rerr == nil {
 				c.SetDeadline(time.Time{})
 			}
-			return
+			return rconn,rerr
 		}
 	}
 }
