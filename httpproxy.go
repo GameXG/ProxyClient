@@ -31,7 +31,7 @@ type httpProxyClient struct {
 	proxyAddr          string
 	proxyDomain        string // 用于ssl证书验证
 	proxyType          string // socks4 socks5
-							  //TODO: 用户名、密码
+	auth               string
 	insecureSkipVerify bool
 	upProxy            ProxyClient
 	query              map[string][]string
@@ -43,7 +43,7 @@ type httpProxyClient struct {
 // proxyDomain				ssl 验证域名，"" 则使用 proxyAddr 部分的域名
 // insecureSkipVerify		使用https代理时是否忽略证书检查
 // UpProxy
-func NewHttpProxyClient(proxyType string, proxyAddr string, proxyDomain string, insecureSkipVerify bool, upProxy ProxyClient, query        map[string][]string) (ProxyClient, error) {
+func NewHttpProxyClient(proxyType string, proxyAddr string, proxyDomain string, auth string, insecureSkipVerify bool, upProxy ProxyClient, query map[string][]string) (ProxyClient, error) {
 	proxyType = strings.ToLower(strings.Trim(proxyType, " \r\n\t"))
 	if proxyType != "http" && proxyType != "https" {
 		return nil, errors.New("ProxyType 错误的格式，只支持http、https代理。")
@@ -65,7 +65,7 @@ func NewHttpProxyClient(proxyType string, proxyAddr string, proxyDomain string, 
 		proxyDomain = host
 	}
 
-	return &httpProxyClient{proxyAddr, proxyDomain, proxyType, insecureSkipVerify, upProxy, query}, nil
+	return &httpProxyClient{proxyAddr, proxyDomain, proxyType, auth, insecureSkipVerify, upProxy, query}, nil
 }
 
 func (p *httpProxyClient) Dial(network, address string) (net.Conn, error) {
@@ -170,27 +170,9 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		req.URL.Host = raddr
 		req.Host = raddr
 
-
-		// 故意追加内容，匹配普通 http 请求长度
-		xpath := "/"
-		rInt, err := rand.Int(rand.Reader, big.NewInt(20))
-		var rInt64 int64
-		if err != nil {
-			rInt64 = srand.Int63n(20)
-		}else {
-			rInt64 = rInt.Int64()
-		}
-
-		for i := int64(-10); i < rInt64; i++ {
-			xpath += "X"
-		}
-
-		req.Header.Add("Accept", "text/html, application/xhtml+xml, image/jxr, */*")
-		req.Header.Add("Accept-Encoding", "gzip, deflate")
-		req.Header.Add("Accept-Language", "zh-CN")
-		req.Header.Add("XXnnection", "Keep-Alive")
-		req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/000.00 (KHTML, like Gecko) Chrome/00.0.0000.0 Safari/000.00 Edge/00.00000")
-		req.Header.Add("Cookie+path", xpath)
+		auth := base64.StdEncoding.EncodeToString([]byte(p.auth))
+		auth = fmt.Sprintf("Basic %v", auth)
+		req.Header.Add("Proxy-Authorization", auth)
 
 		if err := req.Write(c); err != nil {
 			closed = true

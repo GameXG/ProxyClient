@@ -118,7 +118,11 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 	case "socks4", "socks4a", "socks5":
 		return NewSocksProxyClient(scheme, u.Host, upProxy, query)
 	case "http", "https":
-		return NewHttpProxyClient(scheme, u.Host, "", false, upProxy, query)
+		auth := ""
+		if u.User != nil {
+			auth = u.User.String()
+		}
+		return NewHttpProxyClient(scheme, u.Host, "", auth, false, upProxy, query)
 	case "ss":
 		password, ok := u.User.Password()
 		if ok == false {
