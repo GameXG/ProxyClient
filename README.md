@@ -123,3 +123,7 @@ type ProxyClient interface {
 func NewProxyClient(addr string) (ProxyClient, error)
 
 ```
+
+## 感谢
+
+* ss 协议使用的是 [ss-go](https://github.com/shadowsocks/shadowsocks-go)
