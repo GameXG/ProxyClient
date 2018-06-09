@@ -1,12 +1,12 @@
 package proxyclient
 
 import (
-	"net"
+	"bytes"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"time"
-	"bytes"
 )
 
 type directTCPConn struct {
@@ -79,7 +79,7 @@ func (p *directProxyClient) DialTimeout(network, address string, timeout time.Du
 		return nil, fmt.Errorf("不支持的 network 类型:%v", network)
 	}
 
-	d := net.Dialer{Timeout:timeout, LocalAddr:&p.TCPLocalAddr}
+	d := net.Dialer{Timeout: timeout, LocalAddr: &p.TCPLocalAddr}
 	conn, err := d.Dial(network, address)
 	if err != nil {
 		return nil, err
@@ -130,18 +130,18 @@ func (p *directProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (
 	return &directTCPConn{*conn, splitHttp, wTime, p}, nil
 }
 
-func (p *directProxyClient)DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error) {
+func (p *directProxyClient) DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error) {
 	return p.DialTCPSAddrTimeout(network, raddr, 0)
 }
 
 // DialTCPSAddrTimeout 同 DialTCPSAddr 函数，增加了超时功能
-func (p *directProxyClient)DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (rconn ProxyTCPConn, rerr error) {
+func (p *directProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (rconn ProxyTCPConn, rerr error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
 		return nil, fmt.Errorf("不支持的 network 类型:%v", network)
 	}
-	d := net.Dialer{Timeout:timeout, LocalAddr:&p.TCPLocalAddr}
+	d := net.Dialer{Timeout: timeout, LocalAddr: &p.TCPLocalAddr}
 	conn, err := d.Dial(network, raddr)
 	if err != nil {
 		return nil, err
@@ -188,9 +188,8 @@ func (c *directTCPConn) ProxyClient() ProxyClient {
 
 // 拆分 http 请求
 // 查找 'GET', 'HEAD', 'PUT', 'POST', 'TRACE', 'OPTIONS', 'DELETE', 'CONNECT' 及 HTTP、HOST
-//
-func SplitHttp(b[]byte) (res [][]byte) {
-	split := func(b[]byte, i  int) [][]byte {
+func SplitHttp(b []byte) (res [][]byte) {
+	split := func(b []byte, i int) [][]byte {
 		// 根据 i的值拆分成为 2 个 []byte 。
 		// 注意，允许 i < len(b)
 		if len(b) > i {
@@ -202,45 +201,45 @@ func SplitHttp(b[]byte) (res [][]byte) {
 	for i, v := range b {
 		switch v {
 		case 'G':
-			if bytes.HasPrefix(b[i + 1:], []byte("ET ")) {
-				res = split(b, i + 1)
+			if bytes.HasPrefix(b[i+1:], []byte("ET ")) {
+				res = split(b, i+1)
 				res = append([][]byte{res[0]}, split(res[1], 3)...)
 
-				return append(res[:len(res) - 1], SplitHttp(res[len(res) - 1])...)
+				return append(res[:len(res)-1], SplitHttp(res[len(res)-1])...)
 			}
 		case 'P':
-			if bytes.HasPrefix(b[i + 1:], []byte("OST ")) {
-				res = split(b, i + 1)
+			if bytes.HasPrefix(b[i+1:], []byte("OST ")) {
+				res = split(b, i+1)
 				res = append([][]byte{res[0]}, split(res[1], 5)...)
 
-				return append(res[:len(res) - 1], SplitHttp(res[len(res) - 1])...)
+				return append(res[:len(res)-1], SplitHttp(res[len(res)-1])...)
 			}
 		case 'C':
-			if bytes.HasPrefix(b[i + 1:], []byte("ONNECT ")) {
-				res = split(b, i + 1)
+			if bytes.HasPrefix(b[i+1:], []byte("ONNECT ")) {
+				res = split(b, i+1)
 				res = append([][]byte{res[0]}, split(res[1], 8)...)
 
-				return append(res[:len(res) - 1], SplitHttp(res[len(res) - 1])...)
+				return append(res[:len(res)-1], SplitHttp(res[len(res)-1])...)
 			}
 		case 'H':
-			if bytes.HasPrefix(b[i + 1:], []byte("OST:")) {
-				res = split(b, i + 1)
+			if bytes.HasPrefix(b[i+1:], []byte("OST:")) {
+				res = split(b, i+1)
 				res = append([][]byte{res[0]}, split(res[1], 8)...)
 
-				return append(res[:len(res) - 1], SplitHttp(res[len(res) - 1])...)
+				return append(res[:len(res)-1], SplitHttp(res[len(res)-1])...)
 			}
-			if bytes.HasPrefix(b[i + 1:], []byte("TTP")) {
-				res = split(b, i + 1)
+			if bytes.HasPrefix(b[i+1:], []byte("TTP")) {
+				res = split(b, i+1)
 				res = append([][]byte{res[0]}, split(res[1], 9)...)
 
-				return append(res[:len(res) - 1], SplitHttp(res[len(res) - 1])...)
+				return append(res[:len(res)-1], SplitHttp(res[len(res)-1])...)
 			}
 		}
 	}
 	return [][]byte{b}
 }
 
-func (c *directTCPConn) Write(b[]byte) (n int, err error) {
+func (c *directTCPConn) Write(b []byte) (n int, err error) {
 	if c.wTime.IsZero() == false {
 		c.wTime = time.Time{}
 		time.Sleep(c.wTime.Sub(time.Now()))
@@ -263,6 +262,6 @@ func (c *directTCPConn) Write(b[]byte) (n int, err error) {
 func (c *directUDPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
 }
-func (p *directProxyClient)GetProxyAddrQuery() map[string][]string {
+func (p *directProxyClient) GetProxyAddrQuery() map[string][]string {
 	return p.query
 }

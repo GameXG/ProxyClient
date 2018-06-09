@@ -1,7 +1,8 @@
 package main
+
 import (
-	"github.com/gamexg/proxyclient"
 	"fmt"
+	"github.com/gamexg/proxyclient"
 	"time"
 )
 
@@ -26,7 +27,7 @@ func main() {
 
 	if n, err := c.Read(b); err != nil {
 		panic(err)
-	}else {
+	} else {
 		fmt.Print(string(b[:n]))
 	}
 

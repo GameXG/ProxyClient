@@ -8,17 +8,17 @@ import (
 )
 
 func main() {
-	p, err := proxyclient.NewProxyClient("socks5://127.0.0.1:5556")
+	p, err := proxyclient.NewProxyClient("socks5://user1:82979@127.0.0.1:6789")
 	if err != nil {
 		panic("创建代理客户端错误")
 	}
 
-	c, err := p.Dial("tcp", "www.google.com:80")
+	c, err := p.Dial("tcp", "www.163.com:80")
 	if err != nil {
-		panic("连接错误")
+		panic("连接错误" + err.Error())
 	}
 
-	io.WriteString(c, "GET / HTTP/1.0\r\nHOST:www.google.com\r\n\r\n")
+	io.WriteString(c, "GET / HTTP/1.0\r\nHOST:www.163.com\r\n\r\n")
 	b, err := ioutil.ReadAll(c)
 	if err != nil {
 		panic("读错误")

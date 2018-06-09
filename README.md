@@ -1,10 +1,43 @@
 # ProxyClient
-[![Build Status](https://travis-ci.org/GameXG/ProxyClient.svg?branch=master)](https://travis-ci.org/GameXG/ProxyClient) [![GoDoc](https://godoc.org/github.com/GameXG/ProxyClient?status.svg)](https://godoc.org/github.com/GameXG/ProxyClient)
+[![Build Status](https://travis-ci.org/GameXG/ProxyClient.svg?branch=master)](https://travis-ci.org/GameXG/ProxyClient) [![GoDoc](https://godoc.org/github.com/GameXG/ProxyClient?status.svg)](https://godoc.org/github.com/GameXG/ProxyClient) [![Go Report Card](https://goreportcard.com/badge/github.com/GameXG/proxyClient )](https://goreportcard.com/report/github.com/GameXG/proxyClient ) [![codebeat badge](https://codebeat.co/badges/8c16f19c-b868-4ad2-9334-4f3ae05606b3)](https://codebeat.co/projects/github-com-gamexg-proxyclient)
 
 golang 代理客户端，和 net 标准库一致的 API 。
-支持嵌套代理，支持 socks4、socks4a、socks5、http、https、ss 代理协议。其中 socks5 支持用户名、密码认证，http、https支持用户名、密码基本认证。
+支持嵌套代理，支持 socks4、socks4a、socks5、http、https 等代理协议。其中 socks5 支持用户名、密码认证，http、https支持用户名、密码基本认证。
+
+socks5 例子，其他例子请参考 example 目录。
+``` go 
+package main
+
+import (
+	"fmt"
+	"github.com/gamexg/proxyclient"
+	"io"
+	"io/ioutil"
+)
+
+func main() {
+	p, err := proxyclient.NewProxyClient("socks5://user1:82979@127.0.0.1:6789")
+	if err != nil {
+		panic(err)
+	}
+
+	c, err := p.Dial("tcp", "www.163.com:80")
+	if err != nil {
+		panic(err)
+	}
+
+	io.WriteString(c, "GET / HTTP/1.0\r\nHOST:www.163.com\r\n\r\n")
+	b, err := ioutil.ReadAll(c)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(string(b))
+}
+
+```
 
 
+API
 ``` go
 
 
@@ -111,7 +144,6 @@ type ProxyClient interface {
 // socks5 代理 socks5://123.123.123.123:5050
 //     可选功能：用户认证功能。支持无认证、用户名密码认证，格式同 http 代理。
 //
-// ss 代理 ss://method:passowd@123.123.123:5050
 //
 // 直连 direct://0.0.0.0:0000
 //     可选参数： LocalAddr=0.0.0.0:0 表示tcp连接绑定的本地ip及端口，默认值 0.0.0.0:0。
@@ -127,5 +159,4 @@ func NewProxyClient(addr string) (ProxyClient, error)
 
 ## 感谢
 
-* ss 协议使用的是 [ss-go](https://github.com/shadowsocks/shadowsocks-go)
 * 感谢 zhuhaow 为 http、https 协议添加鉴定功能

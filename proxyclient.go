@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 )
 
 // Conn 用来表示连接
@@ -53,6 +53,7 @@ type ProxyUDPConn interface {
 	UDPConn
 	ProxyClient() ProxyClient // 获得所属的代理
 }
+
 // ProxyClient 仿 net 库接口的代理客户端
 // 支持级联代理功能，可以通过 SetUpProxy 设置上级代理。
 type ProxyClient interface {
@@ -171,8 +172,8 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 		sleep := 0 * time.Millisecond
 		if queryGet("sleep") != "" {
 			if s, err := strconv.Atoi(queryGet("sleep")); err != nil {
-				return nil,fmt.Errorf("sleep 参数错误：%v", err)
-			}else {
+				return nil, fmt.Errorf("sleep 参数错误：%v", err)
+			} else {
 				sleep = time.Duration(s) * time.Millisecond
 			}
 		}

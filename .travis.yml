@@ -2,10 +2,20 @@ language: go
 
 go:
   - 1.5
+  - 1.6
+  - 1.7
+  - 1.8
+  - 1.9
   - tip
 
 
 before_install:
+  - cd $HOME/gopath/src/github.com/
+  - mv GameXG gamexg
+  - cd gamexg
+  - mv ProxyClient proxyclient
+  - cd proxyclient
+  - export TRAVIS_BUILD_DIR=$HOME/gopath/src/github.com/gamexg/proxyclient
   - sudo apt-get update -qq
   - sudo apt-get install -y libpcap-dev
   - go get github.com/axw/gocov/gocov

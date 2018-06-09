@@ -1,6 +1,5 @@
 package main
 
-
 /*
 
 ttl 反劫持功能
@@ -15,12 +14,11 @@ ttl 反劫持功能
 
 */
 
-
 import (
 	"fmt"
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 	"net"
 	"os"
 	"sync"
@@ -40,7 +38,8 @@ func main() {
 		fmt.Println(dev.Name)
 		fmt.Println(dev.Addresses)
 		fmt.Println(dev.Description)
-		fmt.Println("\r\n")
+		fmt.Println("")
+		fmt.Println("")
 		go func() {
 			defer wg.Done()
 			capturePacket(dev.Name)
@@ -111,7 +110,7 @@ func handlePacket(handle *pcap.Handle, packet gopacket.Packet) {
 			ttl = 64 - ip.TTL
 		}
 
-		switch  {
+		switch {
 		case ttl > 10:
 			ttl -= 4
 		case ttl > 5:
@@ -125,9 +124,9 @@ func handlePacket(handle *pcap.Handle, packet gopacket.Packet) {
 		ack := tcp.Seq + uint32(len(tcp.Payload)) + 1
 		data := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 		seq := tcp.Ack
-		sendPacket(handle, eth.DstMAC, eth.SrcMAC, ip.DstIP, ip.SrcIP, tcp.DstPort, tcp.SrcPort, ip.Id + 123, ttl, seq, ack, 258, data)
+		sendPacket(handle, eth.DstMAC, eth.SrcMAC, ip.DstIP, ip.SrcIP, tcp.DstPort, tcp.SrcPort, ip.Id+123, ttl, seq, ack, 258, data)
 		seq += 2048
-		sendPacket(handle, eth.DstMAC, eth.SrcMAC, ip.DstIP, ip.SrcIP, tcp.DstPort, tcp.SrcPort, ip.Id + 123, ttl, seq, ack, 258, nil)
+		sendPacket(handle, eth.DstMAC, eth.SrcMAC, ip.DstIP, ip.SrcIP, tcp.DstPort, tcp.SrcPort, ip.Id+123, ttl, seq, ack, 258, nil)
 		//go fmt.Printf("伪重置 %v:%v 的 tcp 连接。\r\n", ip.SrcIP, tcp.SrcPort)
 	}
 }
@@ -150,11 +149,11 @@ func sendPacket(handle *pcap.Handle, sMac, dMac net.HardwareAddr, sIp, dIp net.I
 	tcp := layers.TCP{
 		SrcPort: sPort,
 		DstPort: dPort,
-		Seq:TcpSeq,
-		ACK:true,
-		Ack:ack,
-		Window:WindowsSize,
-		PSH:true, // 立刻处理
+		Seq:     TcpSeq,
+		ACK:     true,
+		Ack:     ack,
+		Window:  WindowsSize,
+		PSH:     true, // 立刻处理
 	}
 
 	if len(data) == 0 {

@@ -1,13 +1,12 @@
 package proxyclient
 
 import (
-	"net"
-	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
-	"testing"
 	"bytes"
+	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
+	"net"
+	"testing"
 	"time"
 )
-
 
 func TestSsProxy(t *testing.T) {
 
@@ -49,7 +48,7 @@ func TestSsProxy(t *testing.T) {
 			buf := make([]byte, 1024)
 			if n, err := sc.Read(buf); err != nil {
 				t.Fatal("i=", i, "服务器读内容错误：", err)
-			}else {
+			} else {
 				if _, err := sc.Write(buf[:n]); err != nil {
 					t.Fatal(err)
 				}
@@ -63,7 +62,7 @@ func TestSsProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, err := p.DialTimeout("tcp", testAddr,1*time.Second)
+	c, err := p.DialTimeout("tcp", testAddr, 1*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +72,7 @@ func TestSsProxy(t *testing.T) {
 	buf := make([]byte, 1024)
 	if n, err := c.Read(buf); err != nil {
 		t.Fatal("读地址错误：", err)
-	}else {
+	} else {
 		if bytes.Compare(buf[:n], testRawAddr) != 0 {
 			t.Fatal("地址未正确发送")
 		}
@@ -86,7 +85,7 @@ func TestSsProxy(t *testing.T) {
 
 	if n, err := c.Read(buf); err != nil {
 		t.Fatal(err)
-	}else {
+	} else {
 		if bytes.Compare(buf[:n], testData) != 0 {
 			t.Fatal("数据未正确发送")
 		}

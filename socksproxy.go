@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	socksCmdConect = 0x01
-	socksCmdBind = 0x02
+	socksCmdConect       = 0x01
+	socksCmdBind         = 0x02
 	socksCmdUDPAssociate = 0x03
 )
 
@@ -46,12 +46,14 @@ type socksProxyClient struct {
 // UpProxy
 func newSocksProxyClient(proxyType, proxyAddr, username, password string, upProxy ProxyClient, query map[string][]string) (ProxyClient, error) {
 	proxyType = strings.ToLower(strings.Trim(proxyType, " \r\n\t"))
-	if proxyType != "socks4" && proxyType != "socks5" {
+	switch proxyType {
+	case "socks4", "socks4a", "socks5":
+	default:
 		return nil, errors.New("ProxyType 错误的格式")
 	}
 
 	if upProxy == nil {
-		nUpProxy, err := newDriectProxyClient("",false,0, make(map[string][]string))
+		nUpProxy, err := newDriectProxyClient("", false, 0, make(map[string][]string))
 		if err != nil {
 			return nil, fmt.Errorf("创建直连代理错误：%v", err)
 		}
@@ -67,7 +69,7 @@ func newSocksProxyClient(proxyType, proxyAddr, username, password string, upProx
 			return nil, fmt.Errorf("用户名或密码过长。")
 		}
 
-		Socket5Authentication = make([]byte, 0, 3 + userLen + passLen)
+		Socket5Authentication = make([]byte, 0, 3+userLen+passLen)
 		Socket5Authentication = append(Socket5Authentication, 0x01, byte(userLen))
 		Socket5Authentication = append(Socket5Authentication, []byte(username)...)
 		Socket5Authentication = append(Socket5Authentication, byte(passLen))
@@ -159,7 +161,7 @@ func (p *socksProxyClient) DialTCPSAddrTimeout(network string, raddr string, tim
 		if cerr != nil {
 			closed = true
 			c.Close()
-			rerr = fmt.Errorf("请求代理服务器建立连接失败：%v", err)
+			rerr = fmt.Errorf("请求代理服务器建立连接失败：%v", cerr)
 			ch <- 0
 			return
 		}
@@ -235,8 +237,10 @@ func socksLogin(c net.Conn, p *socksProxyClient) error {
 			}
 
 			buf := make([]byte, 2)
-			if _, err := io.ReadFull(c, buf); err != nil || bytes.Equal(buf, []byte{0x05, 0x00}) != true {
-				return fmt.Errorf("服务器不支持“不需要鉴定”，回应：%v", buf)
+			if n, err := io.ReadFull(c, buf); err != nil {
+				return fmt.Errorf("连接错误，接收鉴定回应失败。%v", err)
+			} else if bytes.Equal(buf[:n], []byte{0x05, 0x00}) != true {
+				return fmt.Errorf("服务器不支持“不需要鉴定”，回应：%v", buf[:n])
 			}
 		} else {
 			// 用户名密码鉴定
@@ -258,14 +262,14 @@ func socksLogin(c net.Conn, p *socksProxyClient) error {
 			}
 		}
 		return nil
-	}else {
+	} else {
 		return fmt.Errorf("不被支持的代理服务器类型: %v", p.proxyType)
 	}
 }
 
 // 发送 socks 命令请求
 func socksSendCmdRequest(w io.Writer, p *socksProxyClient, cmd byte, raddr string) error {
-	b := make([]byte, 0, 6 + len(raddr))
+	b := make([]byte, 0, 6+len(raddr))
 
 	var port uint16
 	host, portString, err := net.SplitHostPort(raddr)
@@ -318,14 +322,16 @@ func socksSendCmdRequest(w io.Writer, p *socksProxyClient, cmd byte, raddr strin
 	}
 
 	if p.proxyType == "socks5" {
-		if ip == nil { // 域名
+		if ip == nil {
+			// 域名
 			// Ver、CMD、RSV、 ATYP 、域名长度(前面解决了域名长度超过 byte 大小的问题)
 			b = append(b, 0x05, cmd, 0x00, 0x03, byte(hostSize))
 			// 域名
 			b = append(b, []byte(host)...)
 			// 端口
 			b = append(b, portByte...)
-		} else { //IPv4 or ipv6
+		} else {
+			//IPv4 or ipv6
 			// Ver、CMD、RSV、ATYP
 			if len(ip) == net.IPv4len {
 				b = append(b, 0x05, cmd, 0x00, 0x01)
@@ -340,7 +346,8 @@ func socksSendCmdRequest(w io.Writer, p *socksProxyClient, cmd byte, raddr strin
 			b = append(b, portByte...)
 		}
 
-	} else if ip == nil && p.proxyType == "socks4a" { // socks4a 域名格式
+	} else if ip == nil && p.proxyType == "socks4a" {
+		// socks4a 域名格式
 		// ver cmd
 		b = append(b, 0x04, cmd)
 		//port
@@ -351,13 +358,15 @@ func socksSendCmdRequest(w io.Writer, p *socksProxyClient, cmd byte, raddr strin
 		b = append(b, []byte(host)...)
 		b = append(b, 0)
 
-	} else if (ip != nil && p.proxyType == "socks4a") || p.proxyType == "socks4" { // 纯IP
+	} else if (ip != nil && p.proxyType == "socks4a") || p.proxyType == "socks4" {
+		// 纯IP
 		//ver cmd
 		b = append(b, 0x04, cmd)
 		//port
 		b = append(b, portByte...)
 		// ip
 		b = append(b, []byte(ip)...)
+		b = append(b, 0)
 	} else {
 		return fmt.Errorf("未知的 socks 代理类型：%v", p.proxyType)
 	}
@@ -373,10 +382,10 @@ func socksSendCmdRequest(w io.Writer, p *socksProxyClient, cmd byte, raddr strin
 // 服务器应答状态码成功时 err == nil
 // 所以一般只需要判断 err 即可，不需要判断 rep
 func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr string, dstPort uint16, bndAddr string, bndPort uint16, err error) {
-	b := make([]byte, 255 + 10)
+	b := make([]byte, 255+10)
 	if p.proxyType == "socks4" || p.proxyType == "socks4a" {
 		//ver
-		if _, cerr := io.ReadFull(r, b[:1]); cerr != nil || b[0] != 0x04 {
+		if _, cerr := io.ReadFull(r, b[:1]); cerr != nil || b[0] != 0 {
 			err = fmt.Errorf("socks4代理服务器 命令响应错误，ver=%v", b[0])
 			return
 		}
@@ -393,7 +402,7 @@ func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr st
 		}
 
 		dstPort = binary.BigEndian.Uint16(b[1:3])
-		dstIP := net.IP(b[3 : 3 + 4])
+		dstIP := net.IP(b[3 : 3+4])
 		dstAddr = dstIP.String()
 
 		return
@@ -418,7 +427,8 @@ func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr st
 			err = fmt.Errorf("远程代理无法连接到目标。rep=%v", b[0])
 		}
 
-		if atyp == 0x01 || atyp == 0x04 { //ipv4 or ipv6
+		if atyp == 0x01 || atyp == 0x04 {
+			//ipv4 or ipv6
 			if atyp == 0x01 {
 				b = b[:4]
 			} else {
@@ -431,7 +441,8 @@ func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr st
 				return
 			}
 			bndAddr = net.IP(b).String()
-		} else if atyp == 0x03 { //域名
+		} else if atyp == 0x03 {
+			//域名
 			b = b[:domainSize]
 
 			if _, cerr := io.ReadFull(r, b); cerr != nil {
@@ -439,7 +450,8 @@ func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr st
 				return
 			}
 			bndAddr = string(b)
-		} else { //未知的地址类型，不确定响应长度，退出
+		} else {
+			//未知的地址类型，不确定响应长度，退出
 			err = fmt.Errorf("[socks5]未知的地址类型，atyp=%v", atyp)
 			return
 		}
@@ -457,6 +469,6 @@ func socksRecvCmdResponse(r io.Reader, p *socksProxyClient) (rep int, dstAddr st
 	}
 }
 
-func (p *socksProxyClient)GetProxyAddrQuery() map[string][]string {
+func (p *socksProxyClient) GetProxyAddrQuery() map[string][]string {
 	return p.query
 }

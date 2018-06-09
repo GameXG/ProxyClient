@@ -1,12 +1,12 @@
 package proxyclient
 
 import (
+	"errors"
+	"fmt"
 	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
 	"net"
-	"fmt"
-	"errors"
-	"time"
 	"strings"
+	"time"
 )
 
 type ssTCPConn struct {
@@ -35,7 +35,7 @@ func newSsProxyClient(proxyAddr, method, password string, upProxy ProxyClient, q
 	}
 
 	if upProxy == nil {
-		nUpProxy, err := newDriectProxyClient("",false,0, make(map[string][]string))
+		nUpProxy, err := newDriectProxyClient("", false, 0, make(map[string][]string))
 		if err != nil {
 			return nil, fmt.Errorf("创建直连代理错误：%v", err)
 		}
@@ -49,7 +49,6 @@ func newSsProxyClient(proxyAddr, method, password string, upProxy ProxyClient, q
 
 	return &p, nil
 }
-
 
 func (p *ssProxyClient) Dial(network, address string) (net.Conn, error) {
 	if strings.HasPrefix(strings.ToLower(network), "tcp") {
@@ -107,7 +106,6 @@ func (p *ssProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeou
 	ch := make(chan int)
 	defer close(ch)
 
-
 	// 实际执行部分
 	run := func() {
 		sc := ss.NewConn(c, p.cipher.Copy())
@@ -121,7 +119,6 @@ func (p *ssProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeou
 			}
 		}()
 
-
 		if _, err := sc.Write(ra); err != nil {
 			closed = true
 			sc.Close()
@@ -130,7 +127,7 @@ func (p *ssProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeou
 			return
 		}
 
-		r := ssTCPConn{TCPConn: c, sc:sc, proxyClient: p} //{c,net.ResolveTCPAddr("tcp","0.0.0.0:0"),net.ResolveTCPAddr("tcp","0.0.0.0:0"),"","",0,0  p}
+		r := ssTCPConn{TCPConn: c, sc: sc, proxyClient: p} //{c,net.ResolveTCPAddr("tcp","0.0.0.0:0"),net.ResolveTCPAddr("tcp","0.0.0.0:0"),"","",0,0  p}
 
 		rconn = &r
 		ch <- 1
@@ -198,6 +195,6 @@ func (c *ssUDPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
 }
 
-func (p *ssProxyClient)GetProxyAddrQuery() map[string][]string {
+func (p *ssProxyClient) GetProxyAddrQuery() map[string][]string {
 	return p.query
 }

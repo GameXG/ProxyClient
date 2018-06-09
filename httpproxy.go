@@ -2,25 +2,25 @@ package proxyclient
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
+	srand "math/rand"
 	"net"
 	"net/http"
 	"strings"
-	"time"
-	"crypto/rand"
-	srand "math/rand"
-	"math/big"
 	"sync"
-	"encoding/base64"
+	"time"
 )
 
 type httpTCPConn struct {
-	Conn                                //http 协议时是原始链接、https协议时是tls.Conn
-	rawConn               TCPConn       //原始链接
-	tlsConn               *tls.Conn     //tls链接
+	Conn                            //http 协议时是原始链接、https协议时是tls.Conn
+	rawConn               TCPConn   //原始链接
+	tlsConn               *tls.Conn //tls链接
 	localAddr, remoteAddr net.TCPAddr
 	localHost, remoteHost string
 	LocalPort, remotePort uint16
@@ -52,7 +52,7 @@ func newHTTPProxyClient(proxyType string, proxyAddr string, proxyDomain string, 
 	}
 
 	if upProxy == nil {
-		nUpProxy, err := newDriectProxyClient("",false,0, make(map[string][]string))
+		nUpProxy, err := newDriectProxyClient("", false, 0, make(map[string][]string))
 		if err != nil {
 			return nil, fmt.Errorf("创建直连代理错误：%v", err)
 		}
@@ -100,7 +100,6 @@ func (p *httpProxyClient) DialTCP(network string, laddr, raddr *net.TCPAddr) (ne
 func (p *httpProxyClient) DialTCPSAddr(network string, raddr string) (ProxyTCPConn, error) {
 	return p.DialTCPSAddrTimeout(network, raddr, 0)
 }
-
 
 func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (ProxyTCPConn, error) {
 	var rconn ProxyTCPConn
@@ -158,7 +157,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			c = tlsConn
 		}
 
-		req, err := http.NewRequest("CONNECT", raddr, nil)
+		req, err := http.NewRequest("CONNECT", "", nil)
 		if err != nil {
 			closed = true
 			c.Close()
@@ -169,8 +168,8 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			return
 		}
 		//req.URL.Path = raddr
-		req.URL.Host = raddr
 		req.Host = raddr
+		//req.URL.RawPath = raddr
 
 		if p.standardHeader {
 			xpath := "/"
@@ -178,7 +177,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			var rInt64 int64
 			if err != nil {
 				rInt64 = srand.Int63n(20)
-			}else {
+			} else {
 				rInt64 = rInt.Int64()
 			}
 
@@ -186,18 +185,20 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 				xpath += "X"
 			}
 
-			req.Header.Add("Accept", "text/html, application/xhtml+xml, image/jxr, */*")
-			req.Header.Add("Accept-Encoding", "gzip, deflate")
-			req.Header.Add("Accept-Language", "zh-CN")
-			req.Header.Add("XXnnection", "Keep-Alive")
-			req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/000.00 (KHTML, like Gecko) Chrome/00.0.0000.0 Safari/000.00 Edge/00.00000")
+			req.Header.Add("Ac0ept", "text/html, application/xhtml+xml, image/jxr, */*")
+			req.Header.Add("Acc000-Encoding", "gzip, deflate")
+			req.Header.Add("Ac000t-Language", "zh-CN")
+			req.Header.Add("XXnnection", "000p-0000")
+			req.Header.Add("Us0000gent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/000.00 (KHTML, like Gecko) Chrome/00.0.0000.0 Safari/000.00 Edge/00.00000")
 			req.Header.Add("Cookie+path", xpath)
 
 		}
 
-		auth := base64.StdEncoding.EncodeToString([]byte(p.auth))
-		auth = fmt.Sprintf("Basic %v", auth)
-		req.Header.Add("Proxy-Authorization", auth)
+		if p.auth != "" {
+			auth := base64.StdEncoding.EncodeToString([]byte(p.auth))
+			auth = fmt.Sprintf("Basic %v", auth)
+			req.Header.Add("Proxy-Authorization", auth)
+		}
 
 		if err := req.Write(c); err != nil {
 			closed = true
@@ -208,7 +209,6 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			ch <- 0
 			return
 		}
-
 
 		br := bufio.NewReader(c)
 
@@ -239,7 +239,6 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		ch <- 1
 		return
 	}
-
 
 	if timeout == 0 {
 		go run()
@@ -275,11 +274,13 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		}
 	}
 }
+
 // 重写了 Read 接口
 // 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
 func (c *httpTCPConn) Read(b []byte) (n int, err error) {
 	return c.r.Read(b)
 }
+
 // 重写了 Read 接口
 // 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
 func (c *httpTCPConn) Close() error {
@@ -318,6 +319,6 @@ func (c *httpTCPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
 }
 
-func (p *httpProxyClient)GetProxyAddrQuery() map[string][]string {
+func (p *httpProxyClient) GetProxyAddrQuery() map[string][]string {
 	return p.query
 }
