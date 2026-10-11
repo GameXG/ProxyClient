@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gamexg/proxyclient"
+	"github.com/GameXG/ProxyClient"
 	"io"
 	"io/ioutil"
 )

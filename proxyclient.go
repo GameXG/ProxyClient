@@ -49,6 +49,7 @@ type ProxyUDPConn interface {
 	UDPConn
 	ProxyClient() ProxyClient // 获得所属的代理
 }
+
 // 仿 net 库接口的代理客户端
 // 支持级联代理功能，可以通过 SetUpProxy 设置上级代理。
 type ProxyClient interface {
@@ -86,7 +87,8 @@ type ProxyClient interface {
 // socks4 代理 socks4://123.123.123.123:5050  socks4 协议不支持远端 dns 解析
 // socks4a 代理 socks4a://123.123.123.123:5050
 // socks5 代理 socks5://123.123.123.123:5050?upProxy=http://145.2.1.3:8080
-// ss 代理 ss://method:passowd@123.123.123:5050
+// 扩展协议 shadowsocks://... vmess://... vless://... trojan://... wireguard://... hysteria2://...
+// 兼容别名：ss://、hysteria://、hy2://
 // 直连 direct://0.0.0.0:0000/?LocalAddr=123.123.123.123:0
 func NewProxyClient(addr string) (ProxyClient, error) {
 	u, err := url.Parse(addr)
@@ -123,12 +125,8 @@ func NewProxyClient(addr string) (ProxyClient, error) {
 			auth = u.User.String()
 		}
 		return NewHttpProxyClient(scheme, u.Host, "", auth, false, upProxy, query)
-	case "ss":
-		password, ok := u.User.Password()
-		if ok == false {
-			return nil, fmt.Errorf("ss 代理 method, password 格式错误。")
-		}
-		return NewSsProxyClient(u.Host, u.User.Username(), password, upProxy, query)
+	case "shadowsocks", "ss", "vmess", "vless", "trojan", "wireguard", "hysteria2", "hysteria", "hy2":
+		return NewXrayProxyClient(u, query)
 	default:
 		return nil, fmt.Errorf("未识别的代理类型：%v", scheme)
 	}

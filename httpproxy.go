@@ -3,23 +3,21 @@ package proxyclient
 import (
 	"bufio"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strings"
-	"time"
-	"crypto/rand"
-	srand "math/rand"
-	"math/big"
 	"sync"
+	"time"
 )
 
 type HttpTCPConn struct {
-	Conn                                //http 协议时是原始链接、https协议时是tls.Conn
-	rawConn               TCPConn       //原始链接
-	tlsConn               *tls.Conn     //tls链接
+	Conn                            //http 协议时是原始链接、https协议时是tls.Conn
+	rawConn               TCPConn   //原始链接
+	tlsConn               *tls.Conn //tls链接
 	localAddr, remoteAddr net.TCPAddr
 	localHost, remoteHost string
 	LocalPort, remotePort uint16
@@ -99,7 +97,6 @@ func (p *httpProxyClient) DialTCPSAddr(network string, raddr string) (ProxyTCPCo
 	return p.DialTCPSAddrTimeout(network, raddr, 0)
 }
 
-
 func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, timeout time.Duration) (ProxyTCPConn, error) {
 	var rconn ProxyTCPConn
 	var rerr error
@@ -156,7 +153,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			c = tlsConn
 		}
 
-		req, err := http.NewRequest("CONNECT", raddr, nil)
+		req, err := http.NewRequest("CONNECT", "http://"+raddr, nil)
 		if err != nil {
 			closed = true
 			c.Close()
@@ -166,6 +163,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			ch <- 0
 			return
 		}
+		req.URL.Opaque = raddr
 		//req.URL.Path = raddr
 		req.URL.Host = raddr
 		req.Host = raddr
@@ -183,7 +181,6 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			ch <- 0
 			return
 		}
-
 
 		br := bufio.NewReader(c)
 
@@ -215,7 +212,6 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		return
 	}
 
-
 	if timeout == 0 {
 		go run()
 
@@ -223,7 +219,7 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 		case <-ch:
 			rMutex.Lock()
 			defer rMutex.Unlock()
-			return rconn,rerr
+			return rconn, rerr
 		}
 	} else {
 		c.SetDeadline(finalDeadline)
@@ -246,15 +242,17 @@ func (p *httpProxyClient) DialTCPSAddrTimeout(network string, raddr string, time
 			if rerr == nil {
 				c.SetDeadline(time.Time{})
 			}
-			return rconn,rerr
+			return rconn, rerr
 		}
 	}
 }
+
 // 重写了 Read 接口
 // 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
 func (c *HttpTCPConn) Read(b []byte) (n int, err error) {
 	return c.r.Read(b)
 }
+
 // 重写了 Read 接口
 // 由于 http 协议问题，解析响应需要读缓冲，所以必须重写 Read 来兼容读缓冲功能。
 func (c *HttpTCPConn) Close() error {
@@ -293,6 +291,6 @@ func (c *HttpTCPConn) ProxyClient() ProxyClient {
 	return c.proxyClient
 }
 
-func (c *httpProxyClient)GetProxyAddrQuery() map[string][]string {
+func (c *httpProxyClient) GetProxyAddrQuery() map[string][]string {
 	return c.query
 }
